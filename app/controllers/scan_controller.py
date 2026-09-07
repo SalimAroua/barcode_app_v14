@@ -1,7 +1,9 @@
 from PySide6.QtWidgets import QMessageBox
 
 from app.database.session import SessionLocal
-from app.domain.exceptions import IncompletePairError, TemplateError
+from app.domain.exceptions import (
+    IncompletePairError, InactiveScanSessionError, PrinterError, TemplateError,
+)
 from app.services import scan_service
 
 
@@ -13,6 +15,15 @@ class ScanController:
 
         self.view.scanInput.returnPressed.connect(self.on_scan)
         self.view.endSessionButton.clicked.connect(self.on_end_session)
+        self.view.reprintLabelButton.clicked.connect(self.on_reprint_label)
+        self.view.set_reprint_available(self.user.role in ("Admin", "SuperUser"))
+
+        db = SessionLocal()
+        try:
+            session, successful_count = scan_service.get_scan_session_status(db, self.scan_session_id)
+            self.view.update_session_status(session, successful_count)
+        finally:
+            db.close()
 
     def on_scan(self):
         scanned_value = self.view.scanInput.text().strip()
@@ -37,6 +48,13 @@ class ScanController:
                 QMessageBox.critical(self.view, "Template error", str(e))
                 self.view.clear_input()
                 return
+            except PrinterError as e:
+                self.view.show_printer_error(str(e))
+                self.view.clear_input()
+                return
+            except InactiveScanSessionError as e:
+                self.view.stop_scanning(str(e))
+                return
 
             unit_info = ""
             if unit is not None:
@@ -44,6 +62,8 @@ class ScanController:
 
             self.view.show_result(event.result_ok, event.failure_reason)
             self.view.add_log_entry(scanned_value, event.result_ok, event.failure_reason, unit_info)
+            session, successful_count = scan_service.get_scan_session_status(db, self.scan_session_id)
+            self.view.update_session_status(session, successful_count)
             self.view.clear_input()
         finally:
             db.close()
@@ -55,3 +75,21 @@ class ScanController:
         finally:
             db.close()
         self.view.close()
+
+    def on_reprint_label(self):
+        db = SessionLocal()
+        try:
+            path = scan_service.reprint_label(
+                db,
+                scan_session_id=self.scan_session_id,
+                requesting_role=self.user.role,
+            )
+            session, successful_count = scan_service.get_scan_session_status(db, self.scan_session_id)
+            self.view.update_session_status(session, successful_count)
+            QMessageBox.information(self.view, "Label reprinted", f"Label written to:\n{path}")
+        except (PermissionError, ValueError) as e:
+            QMessageBox.warning(self.view, "Reprint unavailable", str(e))
+        except PrinterError as e:
+            self.view.show_printer_error(str(e))
+        finally:
+            db.close()

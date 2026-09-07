@@ -40,6 +40,7 @@ def _rows_to_dataframe(db, events):
             "created_at": ev.created_at.isoformat() if ev.created_at else "",
             "scan_session_id": ev.scan_session_id,
             "operator_number": session.operator_number if session else "",
+            "operators": session.operators if session else "",
             "line_number": session.line_number if session else "",
             "batch_label": session.batch_label if session else "",
             "receipt_name": receipt.name if receipt else "",
@@ -49,7 +50,7 @@ def _rows_to_dataframe(db, events):
     columns = [
         "scan_event_id", "sequence_no", "created_at", "result", "failure_reason",
         "scanned_value", "details", "receipt_name", "scan_session_id",
-        "operator_number", "line_number", "batch_label", "scanned_by_username",
+        "operator_number", "operators", "line_number", "batch_label", "scanned_by_username",
     ]
     return pd.DataFrame.from_records(records, columns=columns)
 

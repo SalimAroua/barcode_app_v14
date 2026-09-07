@@ -27,6 +27,10 @@ def get_receipt(db, receipt_id):
     return db.query(ReceiptDefinition).get(receipt_id)
 
 
+def get_receipt_by_name(db, name):
+    return db.query(ReceiptDefinition).filter_by(name=name).first()
+
+
 def create_receipt(db, *, name, created_by_user_id=None, **fields):
     existing = db.query(ReceiptDefinition).filter_by(name=name).first()
     if existing is not None:

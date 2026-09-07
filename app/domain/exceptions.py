@@ -19,3 +19,11 @@ class InvalidRegexTokenError(TemplateError):
 class IncompletePairError(Exception):
     """A second primary scan was attempted before the open unit's
     companion label was scanned."""
+
+
+class PrinterError(Exception):
+    """A label could not be sent to the configured printer."""
+
+
+class InactiveScanSessionError(Exception):
+    """A scan was attempted after the session had ended."""

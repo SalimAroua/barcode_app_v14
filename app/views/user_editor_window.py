@@ -29,7 +29,8 @@ class UserEditorWindow(QWidget):
         left.addWidget(self.newButton)
         left_widget = QWidget()
         left_widget.setLayout(left)
-        left_widget.setMaximumWidth(260)
+        left_widget.setMinimumWidth(260)
+        left_widget.setMaximumWidth(380)
 
         right = QVBoxLayout()
 
@@ -71,9 +72,11 @@ class UserEditorWindow(QWidget):
 
         right_widget = QWidget()
         right_widget.setLayout(right)
+        right_widget.setMaximumWidth(620)
 
         root.addWidget(left_widget)
         root.addWidget(right_widget)
+        root.setAlignment(Qt.AlignHCenter)
         self.setLayout(root)
 
     def show_error(self, message):

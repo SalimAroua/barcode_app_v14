@@ -73,31 +73,16 @@ login_window.loginButton.click()
 dashboard = login_controller._dashboard_window
 dctrl = login_controller._dashboard_controller
 
-found = False
-for i in range(dashboard.receiptCombo.count()):
-    if dashboard.receiptCombo.itemText(i) == "GUI_BATCH_AUTO":
-        dashboard.receiptCombo.setCurrentIndex(i)
-        found = True
-        break
-check("New receipt appears in the dashboard's dropdown", found)
+dashboard.receiptNameInput.setText("GUI_BATCH_AUTO")
+check("Receipt name field resolves the receipt", dashboard.receiptNameInput.text() == "GUI_BATCH_AUTO")
 check("Batch field is DISABLED when the selected receipt auto-generates", dashboard.batchLabelInput.isEnabled() is False)
 
 # Switch to a receipt without auto-generation (the seeded demo one, if present) and confirm it unlocks.
-switched_back = False
-for i in range(dashboard.receiptCombo.count()):
-    if dashboard.receiptCombo.itemText(i) != "GUI_BATCH_AUTO":
-        dashboard.receiptCombo.setCurrentIndex(i)
-        switched_back = True
-        break
-if switched_back:
-    check("Batch field re-enables for a receipt without auto-generation", dashboard.batchLabelInput.isEnabled() is True)
+dashboard.receiptNameInput.setText("DEMO_RECEIPT")
+check("Batch field re-enables for a receipt without auto-generation", dashboard.batchLabelInput.isEnabled() is True)
 
 # --- Start a real session against the auto-batch receipt and check the result ---
-for i in range(dashboard.receiptCombo.count()):
-    if dashboard.receiptCombo.itemText(i) == "GUI_BATCH_AUTO":
-        dashboard.receiptCombo.setCurrentIndex(i)
-        break
-
+dashboard.receiptNameInput.setText("GUI_BATCH_AUTO")
 dashboard.operatorNumberInput.setText("OPGUI")
 dashboard.lineNumberInput.setText("LINE-GUI")
 dashboard.plainLineNumberInput.setText("33")

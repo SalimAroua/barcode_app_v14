@@ -17,6 +17,11 @@ class ExportWindow(QWidget):
         self.resize(640, 480)
 
         root = QVBoxLayout()
+        root.setContentsMargins(24, 24, 24, 24)
+
+        content = QWidget()
+        content.setMaximumWidth(1100)
+        content_layout = QVBoxLayout()
 
         mode_box = QGroupBox("Export by")
         mode_layout = QHBoxLayout()
@@ -24,7 +29,7 @@ class ExportWindow(QWidget):
         self.modeCombo.addItems(["Session", "Receipt + Date Range"])
         mode_layout.addWidget(self.modeCombo)
         mode_box.setLayout(mode_layout)
-        root.addWidget(mode_box)
+        content_layout.addWidget(mode_box)
 
         self.stack = QStackedWidget()
 
@@ -56,7 +61,7 @@ class ExportWindow(QWidget):
         receipt_page.setLayout(receipt_layout)
         self.stack.addWidget(receipt_page)
 
-        root.addWidget(self.stack)
+        content_layout.addWidget(self.stack)
 
         format_box = QGroupBox("Format")
         format_layout = QHBoxLayout()
@@ -64,14 +69,17 @@ class ExportWindow(QWidget):
         self.formatCombo.addItems(["CSV", "XLSX"])
         format_layout.addWidget(self.formatCombo)
         format_box.setLayout(format_layout)
-        root.addWidget(format_box)
+        content_layout.addWidget(format_box)
 
         buttons = QHBoxLayout()
         self.exportButton = QPushButton("Export...")
         buttons.addWidget(self.exportButton)
         self.closeButton = QPushButton("Close")
         buttons.addWidget(self.closeButton)
-        root.addLayout(buttons)
+        content_layout.addLayout(buttons)
+
+        content.setLayout(content_layout)
+        root.addWidget(content, alignment=Qt.AlignHCenter)
 
         self.setLayout(root)
 

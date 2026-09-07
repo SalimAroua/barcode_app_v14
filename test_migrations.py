@@ -50,6 +50,13 @@ receipt_columns = {c["name"] for c in inspector.get_columns("receipt_definitions
 check("ReceiptDefinition has product_designation column", "product_designation" in receipt_columns)
 check("ReceiptDefinition has serial_min/serial_max columns", {"serial_min", "serial_max"}.issubset(receipt_columns))
 check("ReceiptDefinition has prevent_duplicate_scans column", "prevent_duplicate_scans" in receipt_columns)
+check("ReceiptDefinition has template_file_path column", "template_file_path" in receipt_columns)
+check("ReceiptDefinition has target_quantity column", "target_quantity" in receipt_columns)
+
+scan_session_columns = {c["name"] for c in inspector.get_columns("scan_sessions")}
+check("ScanSession has operators column", "operators" in scan_session_columns)
+check("ScanSession has target_quantity column", "target_quantity" in scan_session_columns)
+check("ScanSession has printed_label_path column", "printed_label_path" in scan_session_columns)
 
 cfg = get_alembic_config()
 expected_head = current_head_revision(cfg)

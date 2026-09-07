@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QComboBox, QGroupBox, QFormLayout,
-    QMessageBox, QSplitter, QTextEdit, QCheckBox
+    QMessageBox, QSplitter, QTextEdit, QCheckBox, QScrollArea
 )
 from PySide6.QtCore import Qt
 
@@ -50,7 +50,7 @@ class ReceiptEditorWindow(QWidget):
         left.addWidget(self.importCsvButton)
         left_widget = QWidget()
         left_widget.setLayout(left)
-        left_widget.setMaximumWidth(220)
+        left_widget.setMinimumWidth(220)
 
         # ---- Middle: template token builder ----
         middle = QVBoxLayout()
@@ -138,6 +138,21 @@ class ReceiptEditorWindow(QWidget):
         batch_box.setLayout(batch_layout)
         right.addWidget(batch_box)
 
+        workflow_box = QGroupBox("Workflow")
+        workflow_form = QFormLayout()
+        self.targetQtyInput = QLineEdit()
+        self.targetQtyInput.setPlaceholderText("Required quantity")
+        self.batchTemplateInput = QLineEdit()
+        self.batchTemplateInput.setPlaceholderText("Select .zpl label template")
+        self.templateBrowseButton = QPushButton("Choose template")
+        template_row = QHBoxLayout()
+        template_row.addWidget(self.batchTemplateInput)
+        template_row.addWidget(self.templateBrowseButton)
+        workflow_form.addRow("Target quantity:", self.targetQtyInput)
+        workflow_form.addRow("Label template:", template_row)
+        workflow_box.setLayout(workflow_form)
+        right.addWidget(workflow_box)
+
         ts_box = QGroupBox("Timestamp policy")
         ts_layout = QVBoxLayout()
         self.timestampPolicyCombo = QComboBox()
@@ -173,14 +188,25 @@ class ReceiptEditorWindow(QWidget):
         right_layout_container = QVBoxLayout()
         right_layout_container.addLayout(right)
         right_widget.setLayout(right_layout_container)
+        right_widget.setMinimumWidth(500)
+
+        right_scroll = QScrollArea()
+        right_scroll.setWidget(right_widget)
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        right_scroll.setMinimumWidth(520)
 
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_widget)
         splitter.addWidget(middle_widget)
-        splitter.addWidget(right_widget)
-        splitter.setSizes([200, 400, 400])
+        splitter.addWidget(right_scroll)
+        splitter.setMaximumWidth(1500)
+        splitter.setSizes([220, 500, 600])
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 2)
+        splitter.setStretchFactor(2, 2)
 
-        root.addWidget(splitter)
+        root.addWidget(splitter, alignment=Qt.AlignHCenter)
         self.setLayout(root)
 
     # ---- helpers used by the controller ----
@@ -203,6 +229,8 @@ class ReceiptEditorWindow(QWidget):
         self.companionRequiredCheck.setChecked(False)
         self.preventDuplicatesCheck.setChecked(False)
         self.autoGenerateBatchCheck.setChecked(False)
+        self.targetQtyInput.clear()
+        self.batchTemplateInput.clear()
         self.notesInput.clear()
         self.tokenList.clear()
         self.previewLabel.setText("")

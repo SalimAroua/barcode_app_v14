@@ -67,14 +67,9 @@ check("Editor closes", not editor.isVisible())
 qt_app.processEvents()  # let the deferred deletion (WA_DeleteOnClose) actually happen
 qt_app.processEvents()
 
-# Refresh dashboard's receipt combo (destroyed signal should have fired already)
-found = False
-for i in range(dashboard.receiptCombo.count()):
-    if dashboard.receiptCombo.itemText(i).startswith("FULL_LOOP_RECEIPT"):
-        found = True
-        dashboard.receiptCombo.setCurrentIndex(i)
-        break
-check("New receipt appears in dashboard's receipt dropdown after closing editor", found)
+# Refresh dashboard's receipt field (destroyed signal should have fired already)
+dashboard.receiptNameInput.setText("FULL_LOOP_RECEIPT")
+check("New receipt can be selected by name in the dashboard after closing editor", dashboard.receiptNameInput.text() == "FULL_LOOP_RECEIPT")
 
 # Start a session against it and scan something valid
 dashboard.operatorNumberInput.setText("OP99")

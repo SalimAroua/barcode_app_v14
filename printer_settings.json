@@ -1,0 +1,7 @@
+{
+  "mode": "usb",
+  "host": "",
+  "port": 9100,
+  "timeout": 5.0,
+  "usb_printer_name": "Microsoft Print to PDF"
+}

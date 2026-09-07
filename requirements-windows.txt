@@ -1,0 +1,2 @@
+# Optional dependency for USB Zebra printers through the Windows spooler.
+pywin32>=306

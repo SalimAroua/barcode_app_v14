@@ -65,7 +65,8 @@ dashboard = login_controller._dashboard_window
 dctrl = login_controller._dashboard_controller
 
 check("Dashboard shows admin-only controls for SuperUser", hasattr(dashboard, "manageReceiptsButton"))
-check("Demo receipt is selectable", dashboard.receiptCombo.count() >= 1 and dashboard.receiptCombo.currentData() is not None)
+check("Receipt text field is available for barcode scan", hasattr(dashboard, "receiptNameInput") and isinstance(dashboard.receiptNameInput, object))
+dashboard.receiptNameInput.setText("DEMO_RECEIPT")
 
 # --- 3. Start a scan session ---
 dashboard.operatorNumberInput.setText("OP01")

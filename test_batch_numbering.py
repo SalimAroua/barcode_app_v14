@@ -6,18 +6,24 @@ across every receipt run on that line.
 Run with: python test_batch_numbering.py
 """
 import os
+import tempfile
 os.environ["DATABASE_URL"] = "sqlite:///test_batch_numbering.db"
+os.environ["PRINTER_SETTINGS_PATH"] = "test_batch_numbering_printer_settings.json"
 if os.path.exists("test_batch_numbering.db"):
     os.remove("test_batch_numbering.db")
+if os.path.exists("test_batch_numbering_printer_settings.json"):
+    os.remove("test_batch_numbering_printer_settings.json")
 
 from datetime import datetime  # noqa: E402
 
 from migrations_runner import run_migrations_to_head  # noqa: E402
 import app.models  # noqa: E402
+from app.database.database import engine  # noqa: E402
 from app.database.session import SessionLocal  # noqa: E402
 from app.models import ReceiptDefinition, User  # noqa: E402
 from app.services.auth_service import AuthService  # noqa: E402
 from app.services import scan_service, batch_numbering_service  # noqa: E402
+from app.domain.exceptions import InactiveScanSessionError  # noqa: E402
 
 run_migrations_to_head()
 AuthService.create_superuser()
@@ -108,7 +114,67 @@ session2 = scan_service.start_scan_session(
 )
 check("Auto-generation OFF keeps the operator's manual batch label", session2.batch_label == "MANUAL-BATCH-001")
 
-# --- 9. Integration: auto-generation ON but no Plain Line # given -> clear error, not a crash ---
+# --- 9. Integration: target quantity triggers a printed batch label at completion ---
+rd_target = ReceiptDefinition(
+    name="BATCH_TARGET", status="active",
+    template_tokens=[{"type": "literal", "value": "Z"}, {"type": "placeholder", "name": "SerialNumber"}],
+    serial_min=1, serial_max=999999,
+    auto_generate_batch_number=True,
+    target_quantity=2,
+)
+db.add(rd_target)
+db.commit()
+db.refresh(rd_target)
+
+session_target = scan_service.start_scan_session(
+    db, started_by_user_id=user.id, receipt_definition_id=rd_target.id,
+    operator_number="OP-TARGET", line_number="LINE-TGT", plain_line_number="77",
+)
+
+with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
+    fh.write("BATCH={batch_label}\nLINE={line_number}\nOP={operator_number}\n")
+    template_path = fh.name
+
+rd_target.template_file_path = template_path
+db.add(rd_target)
+db.commit()
+
+event1, _ = scan_service.record_scan_event(
+    db, user_id=user.id, scan_session_id=session_target.id, scanned_value="Z000001"
+)
+check("Target has not been reached yet", event1.result_ok is True and session_target.printed_label_path is None)
+
+event2, _ = scan_service.record_scan_event(
+    db, user_id=user.id, scan_session_id=session_target.id, scanned_value="Z000002"
+)
+
+db.refresh(session_target)
+check("Target reached triggers printed label",
+      event2.result_ok is True and session_target.printed_label_path is not None and os.path.exists(session_target.printed_label_path))
+label_contents = ""
+if session_target.printed_label_path and os.path.exists(session_target.printed_label_path):
+    with open(session_target.printed_label_path, "r", encoding="utf-8") as label_file:
+        label_contents = label_file.read()
+check("Generated label artifact is ZPL", label_contents.startswith("^XA") and label_contents.rstrip().endswith("^XZ"))
+check("Session closes automatically when target is reached", session_target.is_active is False)
+
+printed_path = session_target.printed_label_path
+post_target_rejected = False
+try:
+    scan_service.record_scan_event(
+        db, user_id=user.id, scan_session_id=session_target.id, scanned_value="Z000003"
+    )
+except InactiveScanSessionError:
+    post_target_rejected = True
+db.refresh(session_target)
+check("Additional scans do not auto-print a second label",
+      post_target_rejected and session_target.printed_label_path == printed_path)
+
+os.remove(template_path)
+if session_target.printed_label_path and os.path.exists(session_target.printed_label_path):
+    os.remove(session_target.printed_label_path)
+
+# --- 10. Integration: auto-generation ON but no Plain Line # given -> clear error, not a crash ---
 raised2 = False
 error_message = ""
 try:
@@ -132,4 +198,9 @@ for status, label in results:
 print("=" * 90)
 print(f"{n_pass}/{len(results)} passed")
 
+# Close all DB handles before removing the SQLite file on Windows.
+db.close()
+engine.dispose()
 os.remove("test_batch_numbering.db")
+if os.path.exists("test_batch_numbering_printer_settings.json"):
+    os.remove("test_batch_numbering_printer_settings.json")

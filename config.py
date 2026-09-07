@@ -26,6 +26,10 @@ def _app_base_dir():
 
 
 _DEFAULT_DB_PATH = os.path.join(_app_base_dir(), "barcode.db")
+PRINTER_SETTINGS_PATH = os.getenv(
+    "PRINTER_SETTINGS_PATH",
+    os.path.join(_app_base_dir(), "printer_settings.json"),
+)
 
 # --- Database -----------------------------------------------------------
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_DEFAULT_DB_PATH}")
@@ -39,3 +43,10 @@ SEED_SUPERUSER_PASSWORD = os.getenv("SEED_SUPERUSER_PASSWORD", "admin123")
 # Used only when a receipt definition doesn't set its own bounds.
 DEFAULT_SERIAL_MIN = 0
 DEFAULT_SERIAL_MAX = 9_999_999
+
+# --- Zebra printer --------------------------------------------------------
+# Zebra printers commonly accept raw ZPL over TCP port 9100. Leave the host
+# empty for offline/test mode, where the generated .zpl file is still saved.
+ZEBRA_PRINTER_HOST = os.getenv("ZEBRA_PRINTER_HOST", "").strip()
+ZEBRA_PRINTER_PORT = int(os.getenv("ZEBRA_PRINTER_PORT", "9100"))
+ZEBRA_PRINTER_TIMEOUT = float(os.getenv("ZEBRA_PRINTER_TIMEOUT", "5"))

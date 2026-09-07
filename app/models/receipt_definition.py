@@ -76,6 +76,13 @@ class ReceiptDefinition(Base):
     # (e.g. 26090712001). See app/services/batch_numbering_service.py.
     auto_generate_batch_number = Column(Boolean, nullable=False, default=False)
 
+    # ---- Workflow defaults ----
+    # Optional local .txt label template used for printing.
+    template_file_path = Column(String(500), nullable=True)
+
+    # Number of successful units required to complete a session.
+    target_quantity = Column(Integer, nullable=True)
+
     notes = Column(String(500))
     created_at = Column(DateTime, default=_utcnow)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

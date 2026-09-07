@@ -40,6 +40,36 @@ with a different "Start in" folder, etc. all work the same way) - this
 was specifically fixed in `config.py` rather than left to depend on the
 current working directory.
 
+### Zebra printer setup
+
+Zebra printers can receive raw ZPL over TCP port 9100. Configure the
+shop-floor printer before starting the application:
+
+```powershell
+$env:ZEBRA_PRINTER_HOST = "192.168.1.50"
+$env:ZEBRA_PRINTER_PORT = "9100"
+$env:ZEBRA_PRINTER_TIMEOUT = "5"
+```
+
+Receipt label templates should be ZPL files containing the supported fields
+`{batch_label}`, `{receipt_name}`, `{operator_number}`, `{line_number}`, and
+`{target_quantity}`. When the target is reached, the app writes the rendered
+`.zpl` artifact and sends the same bytes directly to the Zebra printer. If
+`ZEBRA_PRINTER_HOST` is empty, no network connection is attempted and the
+`.zpl` artifact is retained for offline testing.
+
+The Admin dashboard includes **Zebra Printer Settings**, where the printer
+mode can be selected without editing environment variables:
+
+- **Network printer (TCP):** enter the printer IP/hostname, port, and timeout.
+- **USB printer (Windows spooler):** install the Zebra printer in Windows,
+  install `requirements-windows.txt`, select its Windows printer name, and
+  use **Send Test Label**.
+
+For USB mode, the installed Zebra driver must accept RAW printer data. The
+application sends ZPL directly through the Windows spooler; it does not use
+the Windows print-rendering pipeline.
+
 ## Deploying to other machines
 
 Zip up `dist\BarcodePlaceholderApp\` and copy it to another Windows PC -

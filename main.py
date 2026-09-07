@@ -31,6 +31,6 @@ window = LoginWindow()
 # button's click handling (clicking Login then does nothing at all).
 login_controller = LoginController(window)
 
-window.show()
+window.showMaximized()
 
 sys.exit(app.exec())

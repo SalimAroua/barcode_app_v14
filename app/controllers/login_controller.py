@@ -34,5 +34,5 @@ class LoginController:
 
         self._dashboard_window = DashboardWindow(user)
         self._dashboard_controller = DashboardController(self._dashboard_window, user)
-        self._dashboard_window.show()
+        self._dashboard_window.showMaximized()
         self.view.close()

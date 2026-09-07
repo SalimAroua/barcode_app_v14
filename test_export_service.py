@@ -43,7 +43,7 @@ db.refresh(rd)
 
 session = scan_service.start_scan_session(
     db, started_by_user_id=user.id, receipt_definition_id=rd.id,
-    operator_number="OP01", line_number="LINE1", batch_label="BATCH-X",
+    operator_number="OP01", operators="Alice; Bob", line_number="LINE1", batch_label="BATCH-X",
 )
 
 ev1, _ = scan_service.record_scan_event(db, user_id=user.id, scan_session_id=session.id, scanned_value="EXP-1")
@@ -63,10 +63,11 @@ check("CSV file was created", os.path.exists("test_export_session.csv"))
 
 df = pd.read_csv("test_export_session.csv")
 check("CSV has 3 rows", len(df) == 3)
-check("CSV has expected columns", {"scanned_value", "result", "failure_reason", "receipt_name", "operator_number"}.issubset(df.columns))
+check("CSV has expected columns", {"scanned_value", "result", "failure_reason", "receipt_name", "operator_number", "operators"}.issubset(df.columns))
 check("Pass/fail results correct", list(df["result"]) == ["PASS", "PASS", "FAIL"])
 check("Receipt name joined in correctly", (df["receipt_name"] == "EXPORT_TEST_RECEIPT").all())
 check("Operator number joined in correctly", (df["operator_number"] == "OP01").all())
+check("Operators joined in correctly", (df["operators"] == "Alice; Bob").all())
 check("Failure reason present for the failing row", df.iloc[2]["failure_reason"] not in ("", None) and not pd.isna(df.iloc[2]["failure_reason"]))
 
 # --- 2. Export by session, XLSX ---
@@ -76,6 +77,7 @@ db.close()
 check("XLSX file was created", os.path.exists("test_export_session.xlsx"))
 df_xlsx = pd.read_excel("test_export_session.xlsx")
 check("XLSX has same row count as CSV", len(df_xlsx) == 3)
+check("XLSX includes operators", (df_xlsx["operators"] == "Alice; Bob").all())
 
 # --- 3. Export by receipt + date range ---
 db = SessionLocal()
@@ -104,5 +106,7 @@ print("=" * 90)
 print(f"{n_pass}/{len(results)} passed")
 
 for f in ["test_export_session.csv", "test_export_session.xlsx", "test_export_range.csv", "test_export_empty.csv", "test_export.db"]:
+    if f == "test_export.db":
+        engine.dispose()
     if os.path.exists(f):
         os.remove(f)

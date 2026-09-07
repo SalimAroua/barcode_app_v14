@@ -1,9 +1,14 @@
+import os
+import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
-from app.domain.exceptions import IncompletePairError
+from app.domain.exceptions import IncompletePairError, InactiveScanSessionError
 from app.domain.validator import ValidationResult
 from app.models import ReceiptDefinition, ScanEvent, ScanSession, ScanUnit
+from app.models import roles
 from app.services import batch_numbering_service
+from app.services import printer_service
 from app.services.validation_service import validate
 
 
@@ -13,12 +18,17 @@ def _utcnow():
 
 def start_scan_session(db, *, started_by_user_id, receipt_definition_id,
                         operator_number, line_number, plain_line_number=None,
-                        batch_label=None):
+                        batch_label=None, operators=None, target_quantity=None):
     rd = db.query(ReceiptDefinition).get(receipt_definition_id)
     if rd is None:
         raise ValueError("ReceiptDefinition not found.")
     if rd.status != "active":
         raise ValueError("ReceiptDefinition is not active.")
+
+    if target_quantity is None:
+        target_quantity = rd.target_quantity
+    if target_quantity is not None and target_quantity <= 0:
+        raise ValueError("Target quantity must be greater than zero.")
 
     if rd.auto_generate_batch_number:
         # Operator-entered batch (if any) is ignored - this receipt wants
@@ -29,9 +39,11 @@ def start_scan_session(db, *, started_by_user_id, receipt_definition_id,
         receipt_definition_id=receipt_definition_id,
         started_by_user_id=started_by_user_id,
         operator_number=operator_number,
+        operators=operators,
         line_number=line_number,
         plain_line_number=plain_line_number,
         batch_label=batch_label,
+        target_quantity=target_quantity,
         is_active=True,
     )
     db.add(session)
@@ -58,6 +70,98 @@ def _next_sequence_no(db, scan_session_id):
         .first()
     )
     return (last.sequence_no + 1) if last else 1
+
+
+def _count_successful_scans(db, scan_session_id):
+    return (
+        db.query(ScanEvent)
+        .filter(ScanEvent.scan_session_id == scan_session_id, ScanEvent.result_ok.is_(True))
+        .count()
+    )
+
+
+def get_scan_session_status(db, scan_session_id):
+    session = db.query(ScanSession).get(scan_session_id)
+    if session is None:
+        raise ValueError("ScanSession not found.")
+    return session, _count_successful_scans(db, scan_session_id)
+
+
+def _render_label_output(session, receipt_definition):
+    template_path = receipt_definition.template_file_path
+    batch_label = session.batch_label or ""
+    template_text = ""
+
+    if template_path and os.path.exists(template_path):
+        with open(template_path, "r", encoding="utf-8") as fh:
+            template_text = fh.read()
+    else:
+        template_text = (
+            "^XA\n"
+            "^CF0,36\n"
+            "^FO40,40^FDBatch: {batch_label}^FS\n"
+            "^FO40,90^FDReceipt: {receipt_name}^FS\n"
+            "^FO40,140^FDOperator: {operator_number}^FS\n"
+            "^FO40,190^FDLine: {line_number}^FS\n"
+            "^FO40,240^FDTarget: {target_quantity}^FS\n"
+            "^XZ\n"
+        )
+
+    values = {
+        "batch_label": batch_label,
+        "receipt_name": receipt_definition.name,
+        "operator_number": session.operator_number,
+        "line_number": session.line_number,
+        "plain_line_number": session.plain_line_number or "",
+        "operators": session.operators or "",
+        "target_quantity": session.target_quantity or "",
+    }
+    rendered = template_text.format_map({**{k: "" for k in values.keys()}, **values})
+    if "^XA" not in rendered.upper():
+        rendered = _plain_text_to_zpl(rendered)
+
+    tmp_dir = tempfile.gettempdir()
+    output_path = os.path.join(tmp_dir, f"printed_batch_{session.id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.zpl")
+    Path(output_path).write_text(rendered, encoding="utf-8")
+    return output_path
+
+
+def _plain_text_to_zpl(text):
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    commands = ["^XA", "^CF0,36"]
+    for index, line in enumerate(lines):
+        escaped = line.replace("^", " ").replace("~", " ")
+        commands.append(f"^FO40,{40 + index * 50}^FD{escaped}^FS")
+    commands.append("^XZ")
+    return "\n".join(commands) + "\n"
+
+
+def _send_zpl_to_printer(output_path):
+    zpl_bytes = Path(output_path).read_bytes()
+    return printer_service.send_zpl(zpl_bytes)
+
+
+def _print_label(session, receipt_definition):
+    output_path = _render_label_output(session, receipt_definition)
+    _send_zpl_to_printer(output_path)
+    return output_path
+
+
+def reprint_label(db, *, scan_session_id, requesting_role):
+    if requesting_role not in roles.CAN_MANAGE_RECEIPTS:
+        raise PermissionError("Only Admin or SuperUser can reprint a label.")
+
+    session = db.query(ScanSession).get(scan_session_id)
+    if session is None:
+        raise ValueError("ScanSession not found.")
+    if session.is_active or not session.printed_label_path:
+        raise ValueError("A completed session with a printed label is required.")
+
+    receipt_definition = db.query(ReceiptDefinition).get(session.receipt_definition_id)
+    session.printed_label_path = _print_label(session, receipt_definition)
+    db.add(session)
+    db.commit()
+    return session.printed_label_path
 
 
 def _open_unit(db, scan_session_id):
@@ -101,6 +205,8 @@ def record_scan_event(db, *, user_id, scan_session_id, scanned_value, now=None):
     session = db.query(ScanSession).get(scan_session_id)
     if session is None:
         raise ValueError("ScanSession not found.")
+    if not session.is_active:
+        raise InactiveScanSessionError("This scan session is complete. Scanning has been stopped.")
 
     rd = db.query(ReceiptDefinition).get(session.receipt_definition_id)
     companion_id = rd.companion_receipt_id
@@ -151,6 +257,9 @@ def record_scan_event(db, *, user_id, scan_session_id, scanned_value, now=None):
         details_json=result.details,
     )
 
+    # We do not commit the event immediately if a later step needs session
+    # state from the same transaction, but we do commit before checking target
+    # completion so the count reflects the real persisted state.
     unit = None
     open_unit = _open_unit(db, scan_session_id)
 
@@ -204,4 +313,15 @@ def record_scan_event(db, *, user_id, scan_session_id, scanned_value, now=None):
     # No companion pairing configured - just log the event.
     db.add(event)
     db.commit()
+
+    if (event.result_ok and session.is_active and session.target_quantity is not None
+            and session.printed_label_path is None):
+        successful_count = _count_successful_scans(db, scan_session_id)
+        if successful_count >= session.target_quantity:
+            session.printed_label_path = _print_label(session, rd)
+            session.is_active = False
+            session.ended_at = _utcnow()
+            db.add(session)
+            db.commit()
+
     return event, None

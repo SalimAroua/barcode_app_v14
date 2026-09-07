@@ -26,9 +26,12 @@ class ScanSession(Base):
     started_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     operator_number = Column(String(50), nullable=False)
+    operators = Column(String(500), nullable=True)
     line_number = Column(String(50), nullable=False)
     plain_line_number = Column(String(50))
     batch_label = Column(String(100))
+    target_quantity = Column(Integer, nullable=True)
+    printed_label_path = Column(String(500), nullable=True)
 
     started_at = Column(DateTime, default=_utcnow)
     ended_at = Column(DateTime, nullable=True)

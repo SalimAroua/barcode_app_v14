@@ -38,6 +38,7 @@ class ReceiptEditorController:
         self.view.moveUpButton.clicked.connect(self.on_move_up)
         self.view.moveDownButton.clicked.connect(self.on_move_down)
         self.view.removeTokenButton.clicked.connect(self.on_remove_token)
+        self.view.templateBrowseButton.clicked.connect(self.on_choose_template)
 
         self.view.saveButton.clicked.connect(self.on_save)
         self.view.closeButton.clicked.connect(self.view.close)
@@ -117,6 +118,8 @@ class ReceiptEditorController:
         self.view.companionRequiredCheck.setChecked(bool(rd.companion_required))
         self.view.preventDuplicatesCheck.setChecked(bool(rd.prevent_duplicate_scans))
         self.view.autoGenerateBatchCheck.setChecked(bool(rd.auto_generate_batch_number))
+        self.view.targetQtyInput.setText("" if rd.target_quantity is None else str(rd.target_quantity))
+        self.view.batchTemplateInput.setText(rd.template_file_path or "")
 
         self.view.notesInput.setPlainText(rd.notes or "")
         self.view.set_tokens(rd.template_tokens or [])
@@ -127,6 +130,16 @@ class ReceiptEditorController:
         self.view.receiptList.clearSelection()
         self.view.clear_form()
         self._load_companion_choices()
+
+    def on_choose_template(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.view,
+            "Select label template",
+            "",
+            "ZPL files (*.zpl);;Text files (*.txt);;All files (*)",
+        )
+        if file_path:
+            self.view.batchTemplateInput.setText(file_path)
 
     def on_import_csv(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -229,6 +242,7 @@ class ReceiptEditorController:
         fields = {name: (edit.text() or None) for name, edit in self.view.field_inputs.items()}
         serial_min = self.view.serialMinInput.text().strip()
         serial_max = self.view.serialMaxInput.text().strip()
+        target_quantity_text = self.view.targetQtyInput.text().strip()
         return SimpleNamespace(
             name=self.view.nameInput.text(),
             status=self.view.statusCombo.currentText(),
@@ -241,6 +255,8 @@ class ReceiptEditorController:
             companion_required=self.view.companionRequiredCheck.isChecked(),
             prevent_duplicate_scans=self.view.preventDuplicatesCheck.isChecked(),
             auto_generate_batch_number=self.view.autoGenerateBatchCheck.isChecked(),
+            target_quantity=int(target_quantity_text) if target_quantity_text else None,
+            template_file_path=self.view.batchTemplateInput.text().strip() or None,
             **fields,
         )
 
@@ -290,11 +306,18 @@ class ReceiptEditorController:
 
         serial_min_text = self.view.serialMinInput.text().strip()
         serial_max_text = self.view.serialMaxInput.text().strip()
+        target_qty_text = self.view.targetQtyInput.text().strip()
         if serial_min_text and not serial_min_text.lstrip("-").isdigit():
             self.view.show_error("SerialNumber min must be a whole number.")
             return
         if serial_max_text and not serial_max_text.lstrip("-").isdigit():
             self.view.show_error("SerialNumber max must be a whole number.")
+            return
+        if target_qty_text and not target_qty_text.isdigit():
+            self.view.show_error("Target quantity must be a positive whole number.")
+            return
+        if target_qty_text and int(target_qty_text) <= 0:
+            self.view.show_error("Target quantity must be greater than zero.")
             return
 
         fields = dict(
@@ -307,6 +330,8 @@ class ReceiptEditorController:
             companion_required=self.view.companionRequiredCheck.isChecked(),
             prevent_duplicate_scans=self.view.preventDuplicatesCheck.isChecked(),
             auto_generate_batch_number=self.view.autoGenerateBatchCheck.isChecked(),
+            target_quantity=int(target_qty_text) if target_qty_text else None,
+            template_file_path=self.view.batchTemplateInput.text().strip() or None,
             notes=self.view.notesInput.toPlainText() or None,
         )
         for field_name, edit in self.view.field_inputs.items():

@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QComboBox, QGroupBox, QMessageBox
 )
+from PySide6.QtCore import Qt
 
 from app.models import roles
 
@@ -21,7 +22,9 @@ class DashboardWindow(QWidget):
 
         layout = QVBoxLayout()
 
-        layout.addWidget(QLabel(f"Logged in as: {user.fullname} ({user.role})"))
+        identity_label = QLabel(f"Logged in as: {user.fullname} ({user.role})")
+        identity_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(identity_label)
 
         if user.role in roles.CAN_MANAGE_RECEIPTS or user.role in roles.CAN_MANAGE_USERS:
             admin_box = QGroupBox("Admin")
@@ -31,18 +34,22 @@ class DashboardWindow(QWidget):
                 admin_layout.addWidget(self.manageReceiptsButton)
                 self.exportButton = QPushButton("Export Scan History")
                 admin_layout.addWidget(self.exportButton)
+                self.printerSettingsButton = QPushButton("Zebra Printer Settings")
+                admin_layout.addWidget(self.printerSettingsButton)
             if user.role in roles.CAN_MANAGE_USERS:
                 self.manageUsersButton = QPushButton("Manage Users")
                 admin_layout.addWidget(self.manageUsersButton)
             admin_box.setLayout(admin_layout)
-            layout.addWidget(admin_box)
+            admin_box.setMaximumWidth(720)
+            layout.addWidget(admin_box, alignment=Qt.AlignHCenter)
 
         session_box = QGroupBox("Start a Scan Session")
         session_layout = QVBoxLayout()
 
         session_layout.addWidget(QLabel("Receipt"))
-        self.receiptCombo = QComboBox()
-        session_layout.addWidget(self.receiptCombo)
+        self.receiptNameInput = QLineEdit()
+        self.receiptNameInput.setPlaceholderText("Scan/type receipt name or barcode")
+        session_layout.addWidget(self.receiptNameInput)
 
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Operator #"))
@@ -63,19 +70,34 @@ class DashboardWindow(QWidget):
         session_layout.addLayout(row3)
 
         row4 = QHBoxLayout()
-        row4.addWidget(QLabel("Batch"))
-        self.batchLabelInput = QLineEdit()
-        row4.addWidget(self.batchLabelInput)
+        row4.addWidget(QLabel("Operators"))
+        self.operatorsInput = QLineEdit()
+        row4.addWidget(self.operatorsInput)
         session_layout.addLayout(row4)
+
+        row5 = QHBoxLayout()
+        row5.addWidget(QLabel("Target"))
+        self.targetQuantityInput = QLineEdit()
+        self.targetQuantityInput.setPlaceholderText("Optional")
+        row5.addWidget(self.targetQuantityInput)
+        session_layout.addLayout(row5)
+
+        row6 = QHBoxLayout()
+        row6.addWidget(QLabel("Batch"))
+        self.batchLabelInput = QLineEdit()
+        row6.addWidget(self.batchLabelInput)
+        session_layout.addLayout(row6)
 
         self.startSessionButton = QPushButton("Start Session")
         session_layout.addWidget(self.startSessionButton)
 
         session_box.setLayout(session_layout)
-        layout.addWidget(session_box)
+        session_box.setMaximumWidth(720)
+        layout.addWidget(session_box, alignment=Qt.AlignHCenter)
 
         self.logoutButton = QPushButton("Log out")
-        layout.addWidget(self.logoutButton)
+        self.logoutButton.setMaximumWidth(720)
+        layout.addWidget(self.logoutButton, alignment=Qt.AlignHCenter)
 
         self.setLayout(layout)
 
