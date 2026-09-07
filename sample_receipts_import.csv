@@ -1,0 +1,4 @@
+name,status,template,part_number,customer_part_number,part_description1,part_description2,drawing_number,drawing_date_text,manuf_code,ka_revision_level,generation_status,product_designation,duns,bg_nr,quantity_text,serial_min,serial_max,timestamp_policy,companion_receipt_name,companion_required,prevent_duplicate_scans,notes
+CSV_DEMO_MAIN,active,<<PartNumber>>-<<CustomerPartNumberNoDot>>-SN<<SerialNumber>>,PN-CSV-001,CUST.111.222,,,,,,,,,,,,1,9999999,use_scan_time,CSV_DEMO_COMPANION,true,true,"Example imported via CSV - box label, needs a companion pallet label, rejects a serial reused across any session"
+CSV_DEMO_COMPANION,active,COMP-<<SerialNumber>>,,,,,,,,,,,,,,1,9999999,use_scan_time,,,,Companion (pallet) label for CSV_DEMO_MAIN
+CSV_DEMO_REGEX,draft,LOT-<<regex:LotCode=[A-Z]{2}\d{3}>>-END,,,,,,,,,,,,,,,,use_scan_time,,,,Shows a regex-mode field for a format no named placeholder covers
