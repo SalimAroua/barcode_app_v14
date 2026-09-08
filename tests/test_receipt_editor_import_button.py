@@ -4,7 +4,7 @@ patches QFileDialog so the automated test can pick a file without a real
 file picker, then confirms the import actually lands in the database and
 the receipt list refreshes.
 
-Run with: python test_receipt_editor_import_button.py
+Run with: python -m tests.test_receipt_editor_import_button
 """
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

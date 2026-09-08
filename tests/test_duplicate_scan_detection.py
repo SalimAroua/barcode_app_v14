@@ -4,7 +4,7 @@ against ALL prior PASSED scans for that receipt (any session, any time -
 not just the current session), while the rejected attempt itself is still
 logged as a normal failed ScanEvent for traceability.
 
-Run with: python test_duplicate_scan_detection.py
+Run with: python -m tests.test_duplicate_scan_detection
 """
 import os
 os.environ["DATABASE_URL"] = "sqlite:///test_duplicate_scan.db"

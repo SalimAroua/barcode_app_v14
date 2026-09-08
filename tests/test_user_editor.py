@@ -4,7 +4,7 @@ account, confirm it can log in, edit its role, reset its password, and
 confirm the safety rails (duplicate username, last-SuperUser protection,
 self-lockout protection) actually hold.
 
-Run with: python test_user_editor.py
+Run with: python -m tests.test_user_editor
 """
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

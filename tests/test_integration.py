@@ -3,7 +3,7 @@ Full integration test against a real (temporary) SQLite DB: creates
 tables, seeds a SuperUser, creates receipts, runs a scan session with
 primary/companion pairing.
 
-Run with: python test_integration.py
+Run with: python -m tests.test_integration
 """
 import os
 
@@ -43,7 +43,8 @@ def main():
         primary = ReceiptDefinition(
             name="IT_PRIMARY", status="active",
             template_tokens=[{"type": "literal", "value": "MAIN-"}, {"type": "placeholder", "name": "SerialNumber"}],
-            serial_min=1, serial_max=9_999_999, created_at=now, created_by_user_id=user.id,
+            part_number="PN-IT", serial_min=1, serial_max=9_999_999,
+            created_at=now, created_by_user_id=user.id,
         )
         db.add(primary)
         db.flush()
@@ -67,8 +68,15 @@ def main():
         )
         record("Session started", session.is_active is True)
 
-        ev1, unit1 = scan_service.record_scan_event(db, user_id=user.id, scan_session_id=session.id, scanned_value="MAIN-1")
-        record("Primary scan opens incomplete unit", ev1.result_ok and unit1 is not None and not unit1.is_complete)
+        ev1, unit1 = scan_service.record_scan_event(
+            db, user_id=user.id, scan_session_id=session.id,
+            scanned_value="MAIN-1", expected_receipt="primary",
+        )
+        record(
+            "Primary label tests OK but unit remains incomplete",
+            ev1.result_ok and ev1.failure_reason is None
+            and unit1 is not None and not unit1.is_complete,
+        )
 
         blocked = False
         try:
@@ -77,14 +85,32 @@ def main():
             blocked = True
         record("Second primary blocked until companion scanned", blocked)
 
-        ev2, unit2 = scan_service.record_scan_event(db, user_id=user.id, scan_session_id=session.id, scanned_value="COMP-1")
+        ev2, unit2 = scan_service.record_scan_event(
+            db, user_id=user.id, scan_session_id=session.id,
+            scanned_value="COMP-1", expected_receipt="companion",
+        )
         record("Companion scan completes the unit", ev2.result_ok and unit2 is not None and unit2.id == unit1.id and unit2.is_complete)
+        metrics = scan_service.get_scan_session_metrics(db, session.id)
+        record("Receipt and PN metrics identify the session",
+             metrics["receipt_name"] == "IT_PRIMARY" and metrics["part_number"] == "PN-IT")
+        record("OK/tested metrics count both validated labels",
+               metrics["ok_count"] == 2 and metrics["tested_count"] == 2)
+        kpis = scan_service.get_dashboard_kpis(db)
+        record("Dashboard KPIs aggregate OK/NOK/tested parts",
+               kpis["ok_count"] == 2 and kpis["nok_count"] == 0
+               and kpis["tested_count"] == 2)
 
         ev3, unit3 = scan_service.record_scan_event(db, user_id=user.id, scan_session_id=session.id, scanned_value="COMP-99")
         record("Orphan companion scan rejected", (not ev3.result_ok) and ev3.failure_reason == "CompanionWithoutPrimary")
+        metrics = scan_service.get_scan_session_metrics(db, session.id)
+        record("NOK metric counts rejected scans", metrics["nok_count"] == 1 and metrics["tested_count"] == 3)
 
         ev4, unit4 = scan_service.record_scan_event(db, user_id=user.id, scan_session_id=session.id, scanned_value="MAIN-2")
-        record("Primary scan works again after unit closed", ev4.result_ok and unit4 is not None and not unit4.is_complete)
+        record(
+            "Next primary tests OK but starts another incomplete unit",
+            ev4.result_ok and ev4.failure_reason is None
+            and unit4 is not None and not unit4.is_complete,
+        )
 
         scan_service.end_scan_session(db, session.id)
         record("Session ends cleanly", True)

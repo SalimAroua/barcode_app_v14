@@ -5,7 +5,7 @@ version of this app (via Base.metadata.create_all()) crashed with
 "table users already exists", because Alembic didn't know that database
 was already at the baseline schema.
 
-Run with: python test_migrations_preexisting_db.py
+Run with: python -m tests.test_migrations_preexisting_db
 """
 import os
 os.environ["DATABASE_URL"] = "sqlite:///test_preexisting.db"

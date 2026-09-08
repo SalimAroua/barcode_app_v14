@@ -3,7 +3,7 @@ GUI smoke test: toggle "Auto-generate batch number" in the Receipt
 Editor, confirm the dashboard's Batch field locks/unlocks accordingly,
 and that starting a real session produces the auto-generated value.
 
-Run with: python test_batch_numbering_gui.py
+Run with: python -m tests.test_batch_numbering_gui
 """
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

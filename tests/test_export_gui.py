@@ -3,7 +3,7 @@ GUI smoke test for the Export screen: opens it from the dashboard,
 picks a session from the list, patches the native save dialog, and
 confirms a real file gets written with the right content.
 
-Run with: python test_export_gui.py
+Run with: python -m tests.test_export_gui
 """
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

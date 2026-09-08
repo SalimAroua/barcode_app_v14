@@ -9,7 +9,7 @@ nothing at all (no popup, no window change, no error).
 This test asserts the FIXED pattern (reference kept + gc.collect() forced)
 still works, so a future refactor can't reintroduce the bug unnoticed.
 
-Run with: python test_regression_controller_gc.py
+Run with: python -m tests.test_regression_controller_gc
 """
 import os
 import gc

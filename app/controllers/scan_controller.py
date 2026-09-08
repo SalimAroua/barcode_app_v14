@@ -13,7 +13,12 @@ class ScanController:
         self.user = user
         self.scan_session_id = scan_session_id
 
-        self.view.scanInput.returnPressed.connect(self.on_scan)
+        self.view.scanInput.returnPressed.connect(
+            lambda: self.on_scan(self.view.scanInput, "primary")
+        )
+        self.view.companionScanInput.returnPressed.connect(
+            lambda: self.on_scan(self.view.companionScanInput, "companion")
+        )
         self.view.endSessionButton.clicked.connect(self.on_end_session)
         self.view.reprintLabelButton.clicked.connect(self.on_reprint_label)
         self.view.set_reprint_available(self.user.role in ("Admin", "SuperUser"))
@@ -22,11 +27,17 @@ class ScanController:
         try:
             session, successful_count = scan_service.get_scan_session_status(db, self.scan_session_id)
             self.view.update_session_status(session, successful_count)
+            self.view.update_metrics(scan_service.get_scan_session_metrics(db, self.scan_session_id))
+            self.view.configure_companion_mode(bool(
+                session.receipt_definition.companion_receipt_id
+                and session.receipt_definition.companion_required
+            ))
         finally:
             db.close()
 
-    def on_scan(self):
-        scanned_value = self.view.scanInput.text().strip()
+    def on_scan(self, input_widget=None, expected_receipt=None):
+        input_widget = input_widget or self.view.scanInput
+        scanned_value = input_widget.text().strip()
         if not scanned_value:
             return
 
@@ -38,19 +49,23 @@ class ScanController:
                     user_id=self.user.id,
                     scan_session_id=self.scan_session_id,
                     scanned_value=scanned_value,
+                    expected_receipt=expected_receipt,
                 )
             except IncompletePairError:
                 self.view.show_result(False, "IncompletePair")
                 self.view.add_log_entry(scanned_value, False, "IncompletePair - scan the companion label first")
-                self.view.clear_input()
+                input_widget.clear()
+                input_widget.setFocus()
                 return
             except TemplateError as e:
                 QMessageBox.critical(self.view, "Template error", str(e))
-                self.view.clear_input()
+                input_widget.clear()
+                input_widget.setFocus()
                 return
             except PrinterError as e:
                 self.view.show_printer_error(str(e))
-                self.view.clear_input()
+                input_widget.clear()
+                input_widget.setFocus()
                 return
             except InactiveScanSessionError as e:
                 self.view.stop_scanning(str(e))
@@ -64,7 +79,16 @@ class ScanController:
             self.view.add_log_entry(scanned_value, event.result_ok, event.failure_reason, unit_info)
             session, successful_count = scan_service.get_scan_session_status(db, self.scan_session_id)
             self.view.update_session_status(session, successful_count)
-            self.view.clear_input()
+            self.view.update_metrics(scan_service.get_scan_session_metrics(db, self.scan_session_id))
+            companion_enabled = bool(
+                session.receipt_definition.companion_receipt_id
+                and session.receipt_definition.companion_required
+            )
+            self.view.configure_companion_mode(companion_enabled)
+            if expected_receipt == "primary" and companion_enabled:
+                self.view.focus_companion_input()
+            else:
+                self.view.focus_primary_input()
         finally:
             db.close()
 
@@ -86,6 +110,7 @@ class ScanController:
             )
             session, successful_count = scan_service.get_scan_session_status(db, self.scan_session_id)
             self.view.update_session_status(session, successful_count)
+            self.view.update_metrics(scan_service.get_scan_session_metrics(db, self.scan_session_id))
             QMessageBox.information(self.view, "Label reprinted", f"Label written to:\n{path}")
         except (PermissionError, ValueError) as e:
             QMessageBox.warning(self.view, "Reprint unavailable", str(e))

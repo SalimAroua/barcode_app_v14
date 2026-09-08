@@ -3,7 +3,7 @@ Tests for the CSV receipt-import service: template mini-syntax parsing,
 create-vs-update behavior, companion linking across rows, and error
 handling for bad rows.
 
-Run with: python test_receipt_import.py
+Run with: python -m tests.test_receipt_import
 """
 import os
 os.environ["DATABASE_URL"] = "sqlite:///test_receipt_import.db"
@@ -37,7 +37,7 @@ def write_csv(path, columns, rows):
 COLUMNS = [
     "name", "status", "template", "part_number", "customer_part_number",
     "serial_min", "serial_max", "timestamp_policy",
-    "companion_receipt_name", "companion_required", "notes",
+    "companion_receipt_name", "companion_required", "operator_count", "notes",
 ]
 
 # --- 1. Template mini-syntax parsing ---
@@ -65,7 +65,7 @@ check("DT:<format> placeholder passes through as one placeholder name", tokens3 
 # --- 2. Basic import: create two new receipts ---
 write_csv("test_import_1.csv", COLUMNS, [
     {"name": "IMP_A", "status": "active", "template": "<<PartNumber>>-<<SerialNumber>>",
-     "part_number": "PN-A", "serial_min": "1", "serial_max": "999999"},
+        "part_number": "PN-A", "serial_min": "1", "serial_max": "999999", "operator_count": "3"},
     {"name": "IMP_B", "status": "active", "template": "<<PartNumber>>-<<SerialNumber>>",
      "part_number": "PN-B", "serial_min": "1", "serial_max": "999999"},
 ])
@@ -76,6 +76,7 @@ check("Both new rows created", set(report["created"]) == {"IMP_A", "IMP_B"})
 check("No errors on a clean import", report["errors"] == [])
 check("Both receipts actually persisted", db.query(ReceiptDefinition).filter(
     ReceiptDefinition.name.in_(["IMP_A", "IMP_B"])).count() == 2)
+check("Operator count imported", db.query(ReceiptDefinition).filter_by(name="IMP_A").first().operator_count == 3)
 db.close()
 
 # --- 3. Re-importing the same name UPDATES instead of duplicating ---

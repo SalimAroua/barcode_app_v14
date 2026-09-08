@@ -2,7 +2,7 @@
 Tests for export_service: build real scan data via scan_service, then
 export it and read the resulting file back to verify content.
 
-Run with: python test_export_service.py
+Run with: python -m tests.test_export_service
 """
 import os
 os.environ["DATABASE_URL"] = "sqlite:///test_export.db"
@@ -35,7 +35,8 @@ user = db.query(User).first()
 rd = ReceiptDefinition(
     name="EXPORT_TEST_RECEIPT", status="active",
     template_tokens=[{"type": "literal", "value": "EXP-"}, {"type": "placeholder", "name": "SerialNumber"}],
-    serial_min=1, serial_max=999999, created_at=datetime.now(timezone.utc),
+    serial_min=1, serial_max=999999, operator_count=2,
+    created_at=datetime.now(timezone.utc),
 )
 db.add(rd)
 db.commit()
@@ -63,11 +64,13 @@ check("CSV file was created", os.path.exists("test_export_session.csv"))
 
 df = pd.read_csv("test_export_session.csv")
 check("CSV has 3 rows", len(df) == 3)
-check("CSV has expected columns", {"scanned_value", "result", "failure_reason", "receipt_name", "operator_number", "operators"}.issubset(df.columns))
+check("CSV has expected columns", {"scanned_value", "result", "failure_reason", "receipt_name", "operator_number", "operators", "operator_count", "operator_1", "operator_2"}.issubset(df.columns))
 check("Pass/fail results correct", list(df["result"]) == ["PASS", "PASS", "FAIL"])
 check("Receipt name joined in correctly", (df["receipt_name"] == "EXPORT_TEST_RECEIPT").all())
 check("Operator number joined in correctly", (df["operator_number"] == "OP01").all())
 check("Operators joined in correctly", (df["operators"] == "Alice; Bob").all())
+check("Operator count exported", (df["operator_count"] == 2).all())
+check("Individual operators exported", (df["operator_1"] == "Alice").all() and (df["operator_2"] == "Bob").all())
 check("Failure reason present for the failing row", df.iloc[2]["failure_reason"] not in ("", None) and not pd.isna(df.iloc[2]["failure_reason"]))
 
 # --- 2. Export by session, XLSX ---

@@ -17,7 +17,7 @@ pip install pyinstaller
 ## Build
 
 ```powershell
-pyinstaller main.spec
+.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm main.spec
 ```
 
 This produces `dist\BarcodePlaceholderApp\` - a folder containing

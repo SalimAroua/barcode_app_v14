@@ -3,7 +3,7 @@ Tests for auto-generated batch numbers: YYMMDD + Plain Line # + an
 ever-incrementing, per-line sequence that never resets and is shared
 across every receipt run on that line.
 
-Run with: python test_batch_numbering.py
+Run with: python -m tests.test_batch_numbering
 """
 import os
 import tempfile

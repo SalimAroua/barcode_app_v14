@@ -119,6 +119,7 @@ class ReceiptEditorController:
         self.view.preventDuplicatesCheck.setChecked(bool(rd.prevent_duplicate_scans))
         self.view.autoGenerateBatchCheck.setChecked(bool(rd.auto_generate_batch_number))
         self.view.targetQtyInput.setText("" if rd.target_quantity is None else str(rd.target_quantity))
+        self.view.operatorCountInput.setValue(rd.operator_count or 1)
         self.view.batchTemplateInput.setText(rd.template_file_path or "")
 
         self.view.notesInput.setPlainText(rd.notes or "")
@@ -243,6 +244,7 @@ class ReceiptEditorController:
         serial_min = self.view.serialMinInput.text().strip()
         serial_max = self.view.serialMaxInput.text().strip()
         target_quantity_text = self.view.targetQtyInput.text().strip()
+        operator_count = self.view.operatorCountInput.value()
         return SimpleNamespace(
             name=self.view.nameInput.text(),
             status=self.view.statusCombo.currentText(),
@@ -256,6 +258,7 @@ class ReceiptEditorController:
             prevent_duplicate_scans=self.view.preventDuplicatesCheck.isChecked(),
             auto_generate_batch_number=self.view.autoGenerateBatchCheck.isChecked(),
             target_quantity=int(target_quantity_text) if target_quantity_text else None,
+            operator_count=operator_count,
             template_file_path=self.view.batchTemplateInput.text().strip() or None,
             **fields,
         )
@@ -307,6 +310,7 @@ class ReceiptEditorController:
         serial_min_text = self.view.serialMinInput.text().strip()
         serial_max_text = self.view.serialMaxInput.text().strip()
         target_qty_text = self.view.targetQtyInput.text().strip()
+        operator_count = self.view.operatorCountInput.value()
         if serial_min_text and not serial_min_text.lstrip("-").isdigit():
             self.view.show_error("SerialNumber min must be a whole number.")
             return
@@ -331,6 +335,7 @@ class ReceiptEditorController:
             prevent_duplicate_scans=self.view.preventDuplicatesCheck.isChecked(),
             auto_generate_batch_number=self.view.autoGenerateBatchCheck.isChecked(),
             target_quantity=int(target_qty_text) if target_qty_text else None,
+            operator_count=operator_count,
             template_file_path=self.view.batchTemplateInput.text().strip() or None,
             notes=self.view.notesInput.toPlainText() or None,
         )

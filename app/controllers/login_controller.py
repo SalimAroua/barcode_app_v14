@@ -14,6 +14,7 @@ class LoginController:
         self._dashboard_controller = None
 
         self.view.loginButton.clicked.connect(self.login)
+        self.view.username.returnPressed.connect(self.login)
         self.view.password.returnPressed.connect(self.login)
 
     def login(self):
@@ -34,5 +35,5 @@ class LoginController:
 
         self._dashboard_window = DashboardWindow(user)
         self._dashboard_controller = DashboardController(self._dashboard_window, user)
-        self._dashboard_window.showMaximized()
+        self._dashboard_window.show()
         self.view.close()

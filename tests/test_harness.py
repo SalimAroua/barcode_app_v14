@@ -1,6 +1,6 @@
 """
 Headless functional tests for the template engine + validator.
-Run with: python test_harness.py
+Run with: python -m tests.test_harness
 """
 from datetime import datetime, timezone
 from types import SimpleNamespace

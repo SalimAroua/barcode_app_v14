@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from app.models import roles
+from app.views.window_utils import enable_maximize, set_app_icon
 
 
 class UserEditorWindow(QWidget):
@@ -16,6 +17,8 @@ class UserEditorWindow(QWidget):
 
     def __init__(self):
         super().__init__()
+        enable_maximize(self)
+        set_app_icon(self)
         self.setWindowTitle("Barcode Placeholder App - User Management")
         self.resize(640, 420)
 
@@ -27,6 +30,8 @@ class UserEditorWindow(QWidget):
         left.addWidget(self.userList)
         self.newButton = QPushButton("New User")
         left.addWidget(self.newButton)
+        self.importCsvButton = QPushButton("Import CSV...")
+        left.addWidget(self.importCsvButton)
         left_widget = QWidget()
         left_widget.setLayout(left)
         left_widget.setMinimumWidth(260)
@@ -38,12 +43,18 @@ class UserEditorWindow(QWidget):
         form = QFormLayout()
         self.usernameInput = QLineEdit()
         self.fullnameInput = QLineEdit()
+        self.employeeIdInput = QLineEdit()
+        self.teamLeaderInput = QLineEdit()
+        self.shiftLeaderInput = QLineEdit()
         self.roleCombo = QComboBox()
         self.roleCombo.addItems(list(roles.ALL_ROLES))
         self.activeCheck = QCheckBox("Active")
         self.activeCheck.setChecked(True)
         form.addRow("Username", self.usernameInput)
         form.addRow("Full name", self.fullnameInput)
+        form.addRow("Employee ID", self.employeeIdInput)
+        form.addRow("Team leader", self.teamLeaderInput)
+        form.addRow("Shift leader", self.shiftLeaderInput)
         form.addRow("Role", self.roleCombo)
         form.addRow("", self.activeCheck)
         identity_box.setLayout(form)
@@ -89,6 +100,9 @@ class UserEditorWindow(QWidget):
         self.usernameInput.clear()
         self.usernameInput.setEnabled(True)
         self.fullnameInput.clear()
+        self.employeeIdInput.clear()
+        self.teamLeaderInput.clear()
+        self.shiftLeaderInput.clear()
         self.roleCombo.setCurrentIndex(self.roleCombo.findText(roles.OPERATOR))
         self.activeCheck.setChecked(True)
         self.passwordInput.clear()

@@ -4,7 +4,7 @@ platform) through: login -> dashboard -> start session -> scan (pass) ->
 scan (fail) -> end session. This exercises the real controller wiring,
 not just the service layer.
 
-Run with: QT_QPA_PLATFORM=offscreen python test_gui_flow.py
+Run with: QT_QPA_PLATFORM=offscreen python -m tests.test_gui_flow
 """
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -63,8 +63,21 @@ check("Dashboard window opens on success", login_controller._dashboard_window is
 
 dashboard = login_controller._dashboard_window
 dctrl = login_controller._dashboard_controller
+check("Session follow-up table is present", hasattr(dashboard, "sessionTable"))
 
 check("Dashboard shows admin-only controls for SuperUser", hasattr(dashboard, "manageReceiptsButton"))
+check("Top command bar keeps all workspace commands visible", all(
+    hasattr(dashboard, name) for name in (
+        "loginButton", "manageReceiptsButton", "exportButton",
+        "printerSettingsButton", "manageUsersButton", "logoutButton",
+    )
+))
+check("SuperUser commands are enabled", all(button.isEnabled() for button in (
+    dashboard.manageReceiptsButton,
+    dashboard.exportButton,
+    dashboard.printerSettingsButton,
+    dashboard.manageUsersButton,
+)))
 check("Receipt text field is available for barcode scan", hasattr(dashboard, "receiptNameInput") and isinstance(dashboard.receiptNameInput, object))
 dashboard.receiptNameInput.setText("DEMO_RECEIPT")
 

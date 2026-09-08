@@ -4,7 +4,7 @@ the dashboard, builds a brand-new template token-by-token (literal +
 placeholder + regex), saves it, reopens it to confirm it round-trips, then
 verifies it's immediately usable for an actual scan.
 
-Run with: python test_receipt_editor.py
+Run with: python -m tests.test_receipt_editor
 """
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

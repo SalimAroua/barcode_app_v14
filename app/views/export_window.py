@@ -5,6 +5,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QDateTime
 
+from app.views.window_utils import enable_maximize, set_app_icon
+
 
 class ExportWindow(QWidget):
     """Admin/SuperUser screen: export scan history to CSV or XLSX, either
@@ -13,6 +15,8 @@ class ExportWindow(QWidget):
 
     def __init__(self):
         super().__init__()
+        enable_maximize(self)
+        set_app_icon(self)
         self.setWindowTitle("Barcode Placeholder App - Export Scan History")
         self.resize(640, 480)
 

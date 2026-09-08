@@ -9,6 +9,20 @@ FIXED_FIELD_NAMES = [
     "generation_status", "product_designation", "duns", "bg_nr", "quantity_text",
 ]
 
+MAX_OPERATOR_COUNT = 10
+
+
+def validate_operator_count(value):
+    if value is None:
+        return 1
+    try:
+        count = int(value)
+    except (TypeError, ValueError) as e:
+        raise ValueError("Number of operators must be a whole number from 1 to 10.") from e
+    if not 1 <= count <= MAX_OPERATOR_COUNT:
+        raise ValueError("Number of operators must be between 1 and 10.")
+    return count
+
 
 def list_active_receipts(db):
     return (
@@ -36,6 +50,7 @@ def create_receipt(db, *, name, created_by_user_id=None, **fields):
     if existing is not None:
         raise ValueError(f"A receipt named '{name}' already exists.")
 
+    fields["operator_count"] = validate_operator_count(fields.get("operator_count"))
     rd = ReceiptDefinition(
         name=name,
         created_at=datetime.now(timezone.utc),
@@ -52,6 +67,9 @@ def update_receipt(db, receipt_id, **fields):
     rd = db.query(ReceiptDefinition).get(receipt_id)
     if rd is None:
         raise ValueError("ReceiptDefinition not found.")
+
+    if "operator_count" in fields:
+        fields["operator_count"] = validate_operator_count(fields["operator_count"])
 
     new_name = fields.get("name")
     if new_name and new_name != rd.name:

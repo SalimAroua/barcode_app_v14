@@ -1,6 +1,7 @@
 import sys
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QIcon
 
 import app.models
 
@@ -12,6 +13,7 @@ from app.services import receipt_def_service
 
 from app.views.login_window import LoginWindow
 from app.controllers.login_controller import LoginController
+from app.views.window_utils import app_resource_path
 
 
 run_migrations_to_head()
@@ -23,6 +25,7 @@ receipt_def_service.seed_demo_receipt_if_missing(_db)
 _db.close()
 
 app = QApplication(sys.argv)
+app.setWindowIcon(QIcon(app_resource_path("assets/sa_logo_barcode.png")))
 
 window = LoginWindow()
 
@@ -31,6 +34,6 @@ window = LoginWindow()
 # button's click handling (clicking Login then does nothing at all).
 login_controller = LoginController(window)
 
-window.showMaximized()
+window.show()
 
 sys.exit(app.exec())

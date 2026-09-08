@@ -1,0 +1,4 @@
+username,fullname,employee_id,team_leader,shift_leader,password,role,active
+csv_operator_demo,CSV Operator Demo,EMP-1001,Alice Team Lead,Michael Shift Lead,DemoOperator123!,Operator,true
+csv_admin_demo,CSV Admin Demo,EMP-1002,Alice Team Lead,Michael Shift Lead,DemoAdmin123!,Admin,true
+csv_inactive_demo,CSV Inactive Demo,EMP-1003,Alice Team Lead,Michael Shift Lead,DemoInactive123!,Operator,false

@@ -22,7 +22,7 @@ Expected CSV header columns (all optional except name/template):
     manuf_code, ka_revision_level, generation_status, product_designation,
     duns, bg_nr, quantity_text, serial_min, serial_max, timestamp_policy,
     companion_receipt_name, companion_required, prevent_duplicate_scans,
-    auto_generate_batch_number, notes
+    auto_generate_batch_number, operator_count, notes
 
 A row with a `name` matching an existing receipt UPDATES it; otherwise a
 new receipt is created. companion_receipt_name is resolved by name in a
@@ -154,8 +154,12 @@ def import_csv(db, file_path, created_by_user_id=None):
         try:
             fields["serial_min"] = _parse_int_or_none(row.get("serial_min"))
             fields["serial_max"] = _parse_int_or_none(row.get("serial_max"))
+            operator_count = _parse_int_or_none(row.get("operator_count"))
+            if operator_count is not None and not 1 <= operator_count <= 10:
+                raise ValueError
+            fields["operator_count"] = operator_count or 1
         except ValueError:
-            errors.append((row_num, name, "serial_min/serial_max must be whole numbers."))
+            errors.append((row_num, name, "serial_min/serial_max must be whole numbers and operator_count must be 1-10."))
             continue
 
         fields["companion_required"] = _parse_bool(row.get("companion_required"))

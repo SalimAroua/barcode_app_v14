@@ -6,7 +6,7 @@ Tests for the Alembic migration setup:
  - a real "add a column" migration preserves existing row data (the whole
    point of using migrations instead of create_all())
 
-Run with: python test_migrations.py
+Run with: python -m tests.test_migrations
 """
 import os
 os.environ["DATABASE_URL"] = "sqlite:///test_migrations.db"

@@ -30,6 +30,8 @@ def _rows_to_dataframe(db, events):
             user_cache[ev.user_id] = db.query(User).get(ev.user_id)
         user = user_cache[ev.user_id]
 
+        operator_values = [value.strip() for value in (session.operators or "").split(";") if value.strip()] if session else []
+        operator_columns = {f"operator_{index + 1}": (operator_values[index] if index < len(operator_values) else "") for index in range(10)}
         records.append({
             "scan_event_id": ev.id,
             "sequence_no": ev.sequence_no,
@@ -41,16 +43,20 @@ def _rows_to_dataframe(db, events):
             "scan_session_id": ev.scan_session_id,
             "operator_number": session.operator_number if session else "",
             "operators": session.operators if session else "",
+            "operator_count": receipt.operator_count if receipt else "",
             "line_number": session.line_number if session else "",
             "batch_label": session.batch_label if session else "",
             "receipt_name": receipt.name if receipt else "",
             "scanned_by_username": user.username if user else "",
+            **operator_columns,
         })
 
     columns = [
         "scan_event_id", "sequence_no", "created_at", "result", "failure_reason",
         "scanned_value", "details", "receipt_name", "scan_session_id",
-        "operator_number", "operators", "line_number", "batch_label", "scanned_by_username",
+        "operator_number", "operators", "operator_count", "operator_1", "operator_2",
+        "operator_3", "operator_4", "operator_5", "operator_6", "operator_7", "operator_8",
+        "operator_9", "operator_10", "line_number", "batch_label", "scanned_by_username",
     ]
     return pd.DataFrame.from_records(records, columns=columns)
 

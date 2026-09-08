@@ -5,7 +5,7 @@ build to check it. (test_packaging_build.py, if you run it, does the full
 real build as an end-to-end check; this file is the fast version for
 everyday runs.)
 
-Run with: python test_packaging_paths.py
+Run with: python -m tests.test_packaging_paths
 """
 import importlib.util
 import os

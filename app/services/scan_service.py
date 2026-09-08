@@ -25,6 +25,10 @@ def start_scan_session(db, *, started_by_user_id, receipt_definition_id,
     if rd.status != "active":
         raise ValueError("ReceiptDefinition is not active.")
 
+    operator_values = [value.strip() for value in (operators or "").split(";") if value.strip()]
+    if len(operator_values) > (rd.operator_count or 1):
+        raise ValueError(f"This receipt allows a maximum of {rd.operator_count or 1} operators.")
+
     if target_quantity is None:
         target_quantity = rd.target_quantity
     if target_quantity is not None and target_quantity <= 0:
@@ -80,11 +84,171 @@ def _count_successful_scans(db, scan_session_id):
     )
 
 
+def _count_completed_units(db, scan_session_id):
+    return (
+        db.query(ScanUnit)
+        .filter(
+            ScanUnit.scan_session_id == scan_session_id,
+            ScanUnit.is_complete.is_(True),
+        )
+        .count()
+    )
+
+
+def _count_session_progress(db, session):
+    if (
+        session.receipt_definition
+        and session.receipt_definition.companion_receipt_id
+        and session.receipt_definition.companion_required
+    ):
+        return _count_completed_units(db, session.id)
+    return _count_successful_scans(db, session.id)
+
+
+def _complete_target_if_reached(db, session, receipt_definition):
+    """Print once the required number of complete units reaches the target."""
+    if not session.is_active or session.target_quantity is None or session.printed_label_path:
+        return
+    if _count_session_progress(db, session) < session.target_quantity:
+        return
+    session.printed_label_path = _print_label(session, receipt_definition)
+    session.is_active = False
+    session.ended_at = _utcnow()
+    db.add(session)
+    db.commit()
+
+
 def get_scan_session_status(db, scan_session_id):
     session = db.query(ScanSession).get(scan_session_id)
     if session is None:
         raise ValueError("ScanSession not found.")
-    return session, _count_successful_scans(db, scan_session_id)
+    receipt = db.query(ReceiptDefinition).get(session.receipt_definition_id)
+    session.receipt_definition = receipt
+    return session, _count_session_progress(db, session)
+
+
+def get_scan_session_metrics(db, scan_session_id):
+    session = db.query(ScanSession).get(scan_session_id)
+    if session is None:
+        raise ValueError("ScanSession not found.")
+    receipt = db.query(ReceiptDefinition).get(session.receipt_definition_id)
+    events = db.query(ScanEvent).filter(ScanEvent.scan_session_id == scan_session_id).all()
+    ok_count = sum(1 for event in events if event.result_ok)
+    nok_count = len(events) - ok_count
+    end_time = session.ended_at if not session.is_active and session.ended_at else _utcnow()
+    started_at = session.started_at or end_time
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+    if end_time.tzinfo is None:
+        end_time = end_time.replace(tzinfo=timezone.utc)
+    cycle_seconds = max(0, int((end_time - started_at).total_seconds()))
+    return {
+        "receipt_name": receipt.name if receipt else "",
+        "part_number": receipt.part_number if receipt else "",
+        "ok_count": ok_count,
+        "nok_count": nok_count,
+        "tested_count": len(events),
+        "cycle_seconds": cycle_seconds,
+    }
+
+
+def list_scan_session_metrics(db):
+    sessions = db.query(ScanSession).order_by(ScanSession.id.desc()).all()
+    metrics = []
+    for session in sessions:
+        receipt = db.query(ReceiptDefinition).get(session.receipt_definition_id)
+        events = (
+            db.query(ScanEvent)
+            .filter(ScanEvent.scan_session_id == session.id)
+            .all()
+        )
+        ok_count = sum(1 for event in events if event.result_ok)
+        end_time = session.ended_at if not session.is_active and session.ended_at else _utcnow()
+        started_at = session.started_at or end_time
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
+        metrics.append({
+            "session_id": session.id,
+            "receipt_name": receipt.name if receipt else "",
+            "part_number": receipt.part_number if receipt else "",
+            "ok_count": ok_count,
+            "nok_count": len(events) - ok_count,
+            "tested_count": len(events),
+            "cycle_seconds": max(0, int((end_time - started_at).total_seconds())),
+            "started_at": started_at,
+            "ended_at": session.ended_at,
+            "is_active": bool(session.is_active),
+        })
+    return metrics
+
+
+def get_dashboard_kpis(db):
+    sessions = db.query(ScanSession).order_by(ScanSession.id.desc()).all()
+    total_tested = total_ok = total_completed = 0
+    total_cycle_seconds = 0
+    active_target = None
+    active_elapsed_seconds = 0
+
+    for session in sessions:
+        receipt = db.query(ReceiptDefinition).get(session.receipt_definition_id)
+        events = db.query(ScanEvent).filter(ScanEvent.scan_session_id == session.id).all()
+        ok_count = sum(1 for event in events if event.result_ok)
+        total_tested += len(events)
+        total_ok += ok_count
+        if receipt and receipt.companion_receipt_id and receipt.companion_required:
+            completed = _count_completed_units(db, session.id)
+        else:
+            completed = ok_count
+        total_completed += completed
+
+        end_time = session.ended_at if not session.is_active and session.ended_at else _utcnow()
+        started_at = session.started_at or end_time
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
+        total_cycle_seconds += max(0, int((end_time - started_at).total_seconds()))
+
+        if active_target is None and session.is_active and session.target_quantity:
+            active_target = (session, completed)
+            active_elapsed_seconds = max(0, int((end_time - started_at).total_seconds()))
+
+    total_nok = total_tested - total_ok
+    first_pass_yield = (total_ok / total_tested * 100) if total_tested else 0
+    nok_rate = (total_nok / total_tested * 100) if total_tested else 0
+    average_takt_seconds = total_cycle_seconds / total_completed if total_completed else 0
+    parts_per_hour = total_completed / (total_cycle_seconds / 3600) if total_cycle_seconds else 0
+
+    target_text = "-"
+    eta_text = "-"
+    if active_target:
+        session, completed = active_target
+        target_text = f"{completed} / {session.target_quantity}"
+        if completed and session.started_at:
+            elapsed = max(1, active_elapsed_seconds)
+            rate = completed / elapsed
+            remaining = max(0, session.target_quantity - completed)
+            eta_text = _format_duration(int(remaining / rate)) if rate else "-"
+
+    return {
+        "tested_count": total_tested,
+        "ok_count": total_ok,
+        "nok_count": total_nok,
+        "first_pass_yield": first_pass_yield,
+        "nok_rate": nok_rate,
+        "average_takt_seconds": average_takt_seconds,
+        "parts_per_hour": parts_per_hour,
+        "target_progress": target_text,
+        "eta": eta_text,
+    }
+
+
+def _format_duration(seconds):
+    hours, remainder = divmod(int(seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 def _render_label_output(session, receipt_definition):
@@ -193,7 +357,9 @@ def _find_prior_pass(db, receipt_definition_id, scanned_value):
     )
 
 
-def record_scan_event(db, *, user_id, scan_session_id, scanned_value, now=None):
+def record_scan_event(
+    db, *, user_id, scan_session_id, scanned_value, now=None, expected_receipt=None
+):
     """Validates a scanned value against the session's active receipt and
     records a ScanEvent regardless of pass/fail. If the receipt uses
     companion-label pairing, also manages ScanUnit state:
@@ -209,7 +375,7 @@ def record_scan_event(db, *, user_id, scan_session_id, scanned_value, now=None):
         raise InactiveScanSessionError("This scan session is complete. Scanning has been stopped.")
 
     rd = db.query(ReceiptDefinition).get(session.receipt_definition_id)
-    companion_id = rd.companion_receipt_id
+    companion_id = rd.companion_receipt_id if rd.companion_required else None
 
     # Determine if this scan is meant for the primary or the companion
     # receipt when pairing is configured. We try the primary receipt's
@@ -217,15 +383,19 @@ def record_scan_event(db, *, user_id, scan_session_id, scanned_value, now=None):
     # configured, we try the companion's template.
     is_companion_scan = False
     target_rd = rd
-    result = validate(scanned_value, rd, session)
-
-    if not result.ok and companion_id:
-        companion_rd = db.query(ReceiptDefinition).get(companion_id)
-        companion_result = validate(scanned_value, companion_rd, session)
-        if companion_result.ok:
-            is_companion_scan = True
-            target_rd = companion_rd
-            result = companion_result
+    if expected_receipt == "companion" and companion_id:
+        target_rd = db.query(ReceiptDefinition).get(companion_id)
+        is_companion_scan = True
+        result = validate(scanned_value, target_rd, session)
+    else:
+        result = validate(scanned_value, rd, session)
+        if not result.ok and companion_id and expected_receipt is None:
+            companion_rd = db.query(ReceiptDefinition).get(companion_id)
+            companion_result = validate(scanned_value, companion_rd, session)
+            if companion_result.ok:
+                is_companion_scan = True
+                target_rd = companion_rd
+                result = companion_result
 
     # Duplicate-scan check: only meaningful for a value that otherwise
     # passed format validation, and only if this receipt has the option
@@ -282,6 +452,7 @@ def record_scan_event(db, *, user_id, scan_session_id, scanned_value, now=None):
                     open_unit.completed_at = now
                     db.add(open_unit)
                     db.commit()
+                    _complete_target_if_reached(db, session, rd)
                     return event, open_unit
                 else:
                     db.add(event)
@@ -314,14 +485,8 @@ def record_scan_event(db, *, user_id, scan_session_id, scanned_value, now=None):
     db.add(event)
     db.commit()
 
-    if (event.result_ok and session.is_active and session.target_quantity is not None
-            and session.printed_label_path is None):
-        successful_count = _count_successful_scans(db, scan_session_id)
-        if successful_count >= session.target_quantity:
-            session.printed_label_path = _print_label(session, rd)
-            session.is_active = False
-            session.ended_at = _utcnow()
-            db.add(session)
-            db.commit()
+    if event.result_ok:
+        session.receipt_definition = rd
+        _complete_target_if_reached(db, session, rd)
 
     return event, None

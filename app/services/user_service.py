@@ -18,7 +18,10 @@ def _active_superuser_count(db, exclude_user_id=None):
     return q.count()
 
 
-def create_user(db, *, username, fullname, password, role, active=True):
+def create_user(
+    db, *, username, fullname, password, role, active=True,
+    employee_id=None, team_leader=None, shift_leader=None,
+):
     username = (username or "").strip()
     if not username:
         raise ValueError("Username is required.")
@@ -34,6 +37,9 @@ def create_user(db, *, username, fullname, password, role, active=True):
     user = User(
         username=username,
         fullname=fullname or "",
+        employee_id=employee_id or "",
+        team_leader=team_leader or "",
+        shift_leader=shift_leader or "",
         password_hash=hash_password(password),
         role=role,
         active=active,
@@ -44,8 +50,11 @@ def create_user(db, *, username, fullname, password, role, active=True):
     return user
 
 
-def update_user(db, user_id, *, fullname=None, role=None, active=None, acting_user_id=None):
-    """Updates fullname/role/active. Refuses any change that would leave
+def update_user(
+    db, user_id, *, fullname=None, role=None, active=None,
+    employee_id=None, team_leader=None, shift_leader=None, acting_user_id=None,
+):
+    """Updates profile/access fields. Refuses any change that would leave
     zero active SuperUsers (e.g. demoting or deactivating the last one),
     so an admin can never accidentally lock everyone out."""
     user = db.query(User).get(user_id)
@@ -74,6 +83,12 @@ def update_user(db, user_id, *, fullname=None, role=None, active=None, acting_us
         user.active = active
     if fullname is not None:
         user.fullname = fullname
+    if employee_id is not None:
+        user.employee_id = employee_id
+    if team_leader is not None:
+        user.team_leader = team_leader
+    if shift_leader is not None:
+        user.shift_leader = shift_leader
 
     db.add(user)
     db.commit()

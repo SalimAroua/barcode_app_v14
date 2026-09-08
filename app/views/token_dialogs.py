@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.domain.template_engine import FIXED_FIELD_MAP, SESSION_FIELD_MAP
+from app.views.window_utils import enable_maximize, set_app_icon
 
 # Placeholder names offered in the "Add Placeholder" dropdown, grouped for
 # clarity. DT:<format> is handled by its own dialog since it needs a
@@ -24,6 +25,8 @@ class LiteralTokenDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        enable_maximize(self)
+        set_app_icon(self)
         self.setWindowTitle("Add Literal Text")
         layout = QVBoxLayout()
         layout.addWidget(QLabel("Exact text this token must match:"))
@@ -45,6 +48,8 @@ class PlaceholderTokenDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        enable_maximize(self)
+        set_app_icon(self)
         self.setWindowTitle("Add Placeholder")
         layout = QVBoxLayout()
 
@@ -89,6 +94,8 @@ class RegexTokenDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        enable_maximize(self)
+        set_app_icon(self)
         self.setWindowTitle("Add Regex Field")
         layout = QVBoxLayout()
 

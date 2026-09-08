@@ -1,11 +1,12 @@
 from PySide6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QComboBox, QGroupBox, QFormLayout,
-    QMessageBox, QSplitter, QTextEdit, QCheckBox, QScrollArea
+    QMessageBox, QSplitter, QTextEdit, QCheckBox, QScrollArea, QSpinBox
 )
 from PySide6.QtCore import Qt
 
 from app.services.receipt_def_service import FIXED_FIELD_NAMES
+from app.views.window_utils import enable_maximize, set_app_icon
 
 # Human-friendly labels for the fixed fields, matching the reference label
 # naming from the spec (Section 3.1).
@@ -34,6 +35,8 @@ class ReceiptEditorWindow(QWidget):
 
     def __init__(self):
         super().__init__()
+        enable_maximize(self)
+        set_app_icon(self)
         self.setWindowTitle("Barcode Placeholder App - Receipt Definitions")
         self.resize(1000, 640)
 
@@ -142,6 +145,9 @@ class ReceiptEditorWindow(QWidget):
         workflow_form = QFormLayout()
         self.targetQtyInput = QLineEdit()
         self.targetQtyInput.setPlaceholderText("Required quantity")
+        self.operatorCountInput = QSpinBox()
+        self.operatorCountInput.setRange(1, 10)
+        self.operatorCountInput.setValue(1)
         self.batchTemplateInput = QLineEdit()
         self.batchTemplateInput.setPlaceholderText("Select .zpl label template")
         self.templateBrowseButton = QPushButton("Choose template")
@@ -149,6 +155,7 @@ class ReceiptEditorWindow(QWidget):
         template_row.addWidget(self.batchTemplateInput)
         template_row.addWidget(self.templateBrowseButton)
         workflow_form.addRow("Target quantity:", self.targetQtyInput)
+        workflow_form.addRow("Number of operators:", self.operatorCountInput)
         workflow_form.addRow("Label template:", template_row)
         workflow_box.setLayout(workflow_form)
         right.addWidget(workflow_box)
@@ -230,6 +237,7 @@ class ReceiptEditorWindow(QWidget):
         self.preventDuplicatesCheck.setChecked(False)
         self.autoGenerateBatchCheck.setChecked(False)
         self.targetQtyInput.clear()
+        self.operatorCountInput.setValue(1)
         self.batchTemplateInput.clear()
         self.notesInput.clear()
         self.tokenList.clear()

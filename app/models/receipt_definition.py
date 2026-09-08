@@ -83,6 +83,9 @@ class ReceiptDefinition(Base):
     # Number of successful units required to complete a session.
     target_quantity = Column(Integer, nullable=True)
 
+    # Maximum number of operators available for this receipt's session.
+    operator_count = Column(Integer, nullable=False, default=1)
+
     notes = Column(String(500))
     created_at = Column(DateTime, default=_utcnow)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

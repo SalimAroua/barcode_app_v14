@@ -3,7 +3,7 @@ GUI smoke test: toggle the "Reject a barcode that has already passed
 before" checkbox in the Receipt Editor, save, and confirm it actually
 drives duplicate-rejection behavior in a real scan session afterward.
 
-Run with: python test_duplicate_scan_gui.py
+Run with: python -m tests.test_duplicate_scan_gui
 """
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

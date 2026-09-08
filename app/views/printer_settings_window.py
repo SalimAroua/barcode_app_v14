@@ -4,10 +4,14 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from app.views.window_utils import enable_maximize, set_app_icon
+
 
 class PrinterSettingsWindow(QWidget):
     def __init__(self):
         super().__init__()
+        enable_maximize(self)
+        set_app_icon(self)
         self.setWindowTitle("Zebra Printer Settings")
         self.resize(500, 300)
 

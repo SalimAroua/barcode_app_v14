@@ -16,6 +16,12 @@ class User(Base):
 
     fullname = Column(String(100))
 
+    employee_id = Column(String(50))
+
+    team_leader = Column(String(100))
+
+    shift_leader = Column(String(100))
+
     password_hash = Column(String(255), nullable=False)
 
     role = Column(String(20), nullable=False)
