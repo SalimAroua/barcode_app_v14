@@ -251,6 +251,76 @@ def _format_duration(seconds):
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
+import re
+
+_PLACEHOLDER_RE = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
+
+
+def _session_operators(session):
+    """Return the session's Operator 1..10 values in a stable list.
+
+    The dashboard stores all entered operators as a semicolon-separated
+    string. Operator 1 is also mirrored by ``session.operator_number`` for
+    backward compatibility with the older session model.
+    """
+    raw = session.operators or ""
+    operators = [value.strip() for value in raw.split(";") if value.strip()]
+    if not operators and session.operator_number:
+        operators = [str(session.operator_number).strip()]
+    return operators[:10]
+
+
+# Production-step names used by the identification-card ZPL template. The
+# first seven steps map to Operator 1..7. Generic OPERATOR_1..10 aliases are
+# also exposed so a template can use all ten operator slots when required.
+_STEP_OPERATOR_MAP = {
+    "COUPEUR": 1,
+    "GL_COUPE": 2,
+    "INSERTION_FILS": 3,
+    "ENRUBANAGE": 4,
+    "EOL": 5,
+    "INSERTION_CLIPS": 6,
+    "GL_ASSEMBLAGE": 7,
+}
+
+
+def _operator_label_values(session):
+    """Build placeholder values for operator/production-step traceability."""
+    operators = _session_operators(session)
+    started_at = session.started_at or _utcnow()
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+
+    # Keep the date simple and human-readable for the identification card.
+    date_value = started_at.strftime("%d/%m/%Y")
+    datetime_value = started_at.strftime("%d/%m/%Y %H:%M:%S")
+    values = {}
+
+    for index in range(1, 11):
+        operator = operators[index - 1] if index <= len(operators) else ""
+        # Several intuitive aliases are accepted so existing/new ZPL files do
+        # not have to use one exact spelling.
+        values[f"OPERATOR_{index}"] = operator
+        values[f"OPERATOR{index}"] = operator
+        values[f"OPERATOR_{index}_NOM"] = operator
+        values[f"OPERATOR{index}_NOM"] = operator
+        values[f"OPERATOR_{index}_NAME"] = operator
+        values[f"OPERATOR{index}_NAME"] = operator
+        values[f"OPERATOR_{index}_DATE"] = date_value
+        values[f"OPERATOR{index}_DATE"] = date_value
+        values[f"OPERATOR_{index}_DATETIME"] = datetime_value
+        values[f"OPERATOR{index}_DATETIME"] = datetime_value
+
+    for step_name, operator_index in _STEP_OPERATOR_MAP.items():
+        operator = operators[operator_index - 1] if operator_index <= len(operators) else ""
+        values[f"{step_name}_NOM"] = operator
+        values[f"{step_name}_NAME"] = operator
+        values[f"{step_name}_DATE"] = date_value
+        values[f"{step_name}_DATETIME"] = datetime_value
+
+    return values
+
+
 def _render_label_output(session, receipt_definition):
     template_path = receipt_definition.template_file_path
     batch_label = session.batch_label or ""
@@ -279,16 +349,40 @@ def _render_label_output(session, receipt_definition):
         "plain_line_number": session.plain_line_number or "",
         "operators": session.operators or "",
         "target_quantity": session.target_quantity or "",
+        # Aliases for the {{DOUBLE_BRACE}} template convention.
+        "REFERENCE": receipt_definition.part_number or receipt_definition.name or "",
+        "QTE": session.target_quantity or receipt_definition.quantity_text or "",
     }
-    rendered = template_text.format_map({**{k: "" for k in values.keys()}, **values})
+    values.update(_operator_label_values(session))
+
+    if "{{" in template_text:
+        # {{name}} convention. Do not use str.format_map here: Python treats
+        # doubled braces as escaped literal braces.
+        def _replace(match):
+            key = match.group(1)
+            if key in values:
+                return str(values[key])
+            return match.group(0)
+
+        rendered = _PLACEHOLDER_RE.sub(_replace, template_text)
+    else:
+        # {field} convention (built-in fallback and older custom templates).
+        rendered = template_text.format_map({**{k: "" for k in values.keys()}, **values})
+
     if "^XA" not in rendered.upper():
         rendered = _plain_text_to_zpl(rendered)
 
+    # Prevent operator/receipt data from accidentally becoming ZPL commands.
+    rendered = rendered.replace("\r\n", "\n").replace("\r", "\n")
+    rendered = rendered.replace("^XA", "^XA").replace("^XZ", "^XZ")
+
     tmp_dir = tempfile.gettempdir()
-    output_path = os.path.join(tmp_dir, f"printed_batch_{session.id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.zpl")
+    output_path = os.path.join(
+        tmp_dir,
+        f"printed_batch_{session.id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.zpl",
+    )
     Path(output_path).write_text(rendered, encoding="utf-8")
     return output_path
-
 
 def _plain_text_to_zpl(text):
     lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -298,6 +392,11 @@ def _plain_text_to_zpl(text):
         commands.append(f"^FO40,{40 + index * 50}^FD{escaped}^FS")
     commands.append("^XZ")
     return "\n".join(commands) + "\n"
+
+
+def render_label_for_preview(session, receipt_definition):
+    """Render the exact concrete ZPL that the print path would send, but do not print it."""
+    return _render_label_output(session, receipt_definition)
 
 
 def _send_zpl_to_printer(output_path):

@@ -88,6 +88,9 @@ class ScanWindow(QWidget):
         self.reprintLabelButton.setVisible(False)
         layout.addWidget(self.reprintLabelButton)
 
+        self.previewLabelButton = QPushButton("Preview ZPL Label")
+        layout.addWidget(self.previewLabelButton)
+
         self.setLayout(layout)
         self.configure_companion_mode(companion_enabled)
         self.scanInput.setFocus()
