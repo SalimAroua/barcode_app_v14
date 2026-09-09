@@ -251,6 +251,11 @@ def _format_duration(seconds):
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
+import re
+
+_PLACEHOLDER_RE = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
+
+
 def _render_label_output(session, receipt_definition):
     template_path = receipt_definition.template_file_path
     batch_label = session.batch_label or ""
@@ -279,8 +284,34 @@ def _render_label_output(session, receipt_definition):
         "plain_line_number": session.plain_line_number or "",
         "operators": session.operators or "",
         "target_quantity": session.target_quantity or "",
+        # Aliases for the {{DOUBLE_BRACE}} template convention (used by
+        # e.g. carte_identification_label.zpl), mapped onto the closest
+        # existing field. Add more aliases here as new templates need them.
+        "REFERENCE": receipt_definition.part_number or receipt_definition.name or "",
+        "QTE": session.target_quantity or receipt_definition.quantity_text or "",
     }
-    rendered = template_text.format_map({**{k: "" for k in values.keys()}, **values})
+
+    if "{{" in template_text:
+        # {{name}} convention: str.format_map/str.format treat "{{"/"}}"
+        # as ESCAPED literal braces, not a placeholder to substitute - so
+        # using format_map here would silently leave every {{FIELD}} as
+        # literal text. Substitute these explicitly instead. A field with
+        # no known value is left as "{{FIELD}}" rather than blanked, so
+        # it's obvious in the printed/rendered output that it still needs
+        # a real data source, instead of silently printing a blank space
+        # someone might not notice.
+        def _replace(match):
+            key = match.group(1)
+            if key in values:
+                return str(values[key])
+            return match.group(0)
+
+        rendered = _PLACEHOLDER_RE.sub(_replace, template_text)
+    else:
+        # {field} convention (the built-in fallback template above, and
+        # any custom template using single braces).
+        rendered = template_text.format_map({**{k: "" for k in values.keys()}, **values})
+
     if "^XA" not in rendered.upper():
         rendered = _plain_text_to_zpl(rendered)
 
