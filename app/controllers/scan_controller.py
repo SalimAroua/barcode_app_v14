@@ -1,10 +1,12 @@
 from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import Qt
 
 from app.database.session import SessionLocal
 from app.domain.exceptions import (
     IncompletePairError, InactiveScanSessionError, PrinterError, TemplateError,
 )
 from app.services import scan_service
+from app.views.zpl_preview_window import ZplPreviewWindow
 
 
 class ScanController:
@@ -21,6 +23,7 @@ class ScanController:
         )
         self.view.endSessionButton.clicked.connect(self.on_end_session)
         self.view.reprintLabelButton.clicked.connect(self.on_reprint_label)
+        self.view.previewLabelButton.clicked.connect(self.on_preview_label)
         self.view.set_reprint_available(self.user.role in ("Admin", "SuperUser"))
 
         db = SessionLocal()
@@ -99,6 +102,31 @@ class ScanController:
         finally:
             db.close()
         self.view.close()
+
+    def on_preview_label(self):
+        db = SessionLocal()
+        try:
+            session, _ = scan_service.get_scan_session_status(db, self.scan_session_id)
+            receipt = session.receipt_definition
+            if receipt is None or not receipt.template_file_path:
+                QMessageBox.warning(
+                    self.view,
+                    "ZPL Preview",
+                    "This receipt does not have a ZPL template file configured.",
+                )
+                return
+
+            # Render the same concrete ZPL used by the real print path.
+            zpl_path = scan_service.render_label_for_preview(session, receipt)
+        except Exception as exc:
+            QMessageBox.warning(self.view, "ZPL Preview", str(exc))
+            return
+        finally:
+            db.close()
+
+        self._preview_window = ZplPreviewWindow(zpl_path, self.view)
+        self._preview_window.setAttribute(Qt.WA_DeleteOnClose, True)
+        self._preview_window.show()
 
     def on_reprint_label(self):
         db = SessionLocal()

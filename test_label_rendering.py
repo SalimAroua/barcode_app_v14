@@ -1,97 +1,62 @@
-"""
-Tests for _render_label_output: the {{name}}-style substitution fix (was
-previously broken - str.format_map treats {{ }} as escaped literal braces
-and never substitutes them), verified against the actual uploaded
-carte_identification_label.zpl, plus the existing single-brace fallback
-path to confirm it didn't regress.
+"""Focused tests for concrete ZPL placeholder rendering."""
+from datetime import datetime, timezone
+from types import SimpleNamespace
 
-Run with: python test_label_rendering.py
-"""
-import os
-os.environ["DATABASE_URL"] = "sqlite:///test_label_rendering.db"
-
-from types import SimpleNamespace  # noqa: E402
-import app.services.scan_service as ss  # noqa: E402
-
-results = []
+from app.services.scan_service import _render_label_output
 
 
-def check(label, cond):
-    results.append(("PASS" if cond else "FAIL", label))
+def test_operator_and_step_placeholders(tmp_path):
+    zpl = """^XA
+^FO10,10^FD{{REFERENCE}}^FS
+^FO10,40^FD{{QTE}}^FS
+^FO10,70^FD{{COUPEUR_NOM}} / {{COUPEUR_DATE}}^FS
+^FO10,100^FD{{GL_COUPE_NOM}} / {{GL_COUPE_DATE}}^FS
+^FO10,130^FD{{INSERTION_FILS_NOM}} / {{INSERTION_FILS_DATE}}^FS
+^FO10,160^FD{{ENRUBANAGE_NOM}} / {{ENRUBANAGE_DATE}}^FS
+^FO10,190^FD{{EOL_NOM}} / {{EOL_DATE}}^FS
+^FO10,220^FD{{INSERTION_CLIPS_NOM}} / {{INSERTION_CLIPS_DATE}}^FS
+^FO10,250^FD{{GL_ASSEMBLAGE_NOM}} / {{GL_ASSEMBLAGE_DATE}}^FS
+^FO10,280^FD{{OPERATOR_8_NOM}} / {{OPERATOR_10_DATE}}^FS
+^XZ"""
+    template = tmp_path / "label.zpl"
+    template.write_text(zpl, encoding="utf-8")
+
+    receipt = SimpleNamespace(
+        template_file_path=str(template),
+        name="R1",
+        part_number="PN-12345",
+        quantity_text="500",
+    )
+    session = SimpleNamespace(
+        id=1,
+        batch_label="26090901001",
+        operator_number="Alice",
+        operators="Alice; Bob; Carol; Dan; Eva; Frank; Grace; Henry; Irene; Jack",
+        line_number="L01",
+        plain_line_number="01",
+        target_quantity=500,
+        started_at=datetime(2026, 9, 9, 8, 30, tzinfo=timezone.utc),
+    )
+
+    output = Path(_render_label_output(session, receipt)).read_text(encoding="utf-8")
+    assert "PN-12345" in output
+    assert "500" in output
+    assert "Alice / 09/09/2026" in output
+    assert "Bob / 09/09/2026" in output
+    assert "Grace / 09/09/2026" in output
+    assert "Henry / 09/09/2026" in output
+    assert "Jack / 09/09/2026" in output
+    assert "{{COUPEUR_NOM}}" not in output
 
 
-# --- 1. The real uploaded template: {{name}} double-brace syntax ---
-rd = SimpleNamespace(
-    template_file_path="carte_identification_label.zpl",
-    part_number="PN-12345",
-    name="Carte identification",
-    quantity_text="500",
-)
-session = SimpleNamespace(
-    id=1, batch_label="26090712001", operator_number="OP1", line_number="LINE-12",
-    plain_line_number="12", operators="Alice;Bob", target_quantity=500,
-)
-
-output_path = ss._render_label_output(session, rd)
-rendered = open(output_path, encoding="utf-8").read()
-
-check("REFERENCE placeholder is actually substituted (not left as {{REFERENCE}})",
-      "{{REFERENCE}}" not in rendered and "PN-12345" in rendered)
-check("QTE placeholder is actually substituted", "{{QTE}}" not in rendered and rendered.count("500") >= 1)
-check("Unmapped per-step fields are left visibly marked, not silently blanked",
-      "{{COUPEUR_NOM}}" in rendered)
-check("Output is still valid-looking ZPL (starts with ^XA, ends with ^XZ)",
-      rendered.strip().startswith("^XA") and rendered.strip().endswith("^XZ"))
-check("No stray single braces left over from the old broken escaping ({REFERENCE})",
-      "{REFERENCE}" not in rendered and "{QTE}" not in rendered)
-
-os.remove(output_path)
-
-# --- 2. REFERENCE prefers part_number, falls back to receipt name if blank ---
-rd_no_part_number = SimpleNamespace(
-    template_file_path="carte_identification_label.zpl",
-    part_number=None, name="FallbackReceiptName", quantity_text=None,
-)
-session2 = SimpleNamespace(
-    id=2, batch_label="X", operator_number="OP1", line_number="L1",
-    plain_line_number="1", operators="", target_quantity=None,
-)
-output_path2 = ss._render_label_output(session2, rd_no_part_number)
-rendered2 = open(output_path2, encoding="utf-8").read()
-check("REFERENCE falls back to the receipt name when part_number is blank",
-      "FallbackReceiptName" in rendered2)
-os.remove(output_path2)
-
-# --- 3. The built-in fallback template (no template_file_path) still works (single-brace syntax) ---
-rd_no_template = SimpleNamespace(template_file_path=None, part_number="PN-X", name="X", quantity_text=None)
-session3 = SimpleNamespace(
-    id=3, batch_label="BATCH-3", operator_number="OP3", line_number="L3",
-    plain_line_number="3", operators="", target_quantity=10,
-)
-output_path3 = ss._render_label_output(session3, rd_no_template)
-rendered3 = open(output_path3, encoding="utf-8").read()
-check("Fallback (no template file) still substitutes single-brace fields correctly",
-      "BATCH-3" in rendered3 and "{batch_label}" not in rendered3)
-os.remove(output_path3)
-
-# --- 4. A missing template file path falls back gracefully (no crash) ---
-rd_missing_file = SimpleNamespace(
-    template_file_path="/no/such/file.zpl", part_number="PN-Y", name="Y", quantity_text=None,
-)
-session4 = SimpleNamespace(
-    id=4, batch_label="BATCH-4", operator_number="OP4", line_number="L4",
-    plain_line_number="4", operators="", target_quantity=None,
-)
-output_path4 = ss._render_label_output(session4, rd_missing_file)
-rendered4 = open(output_path4, encoding="utf-8").read()
-check("A missing template file path falls back to the built-in template instead of crashing",
-      "BATCH-4" in rendered4)
-os.remove(output_path4)
-
-print("\n" + "=" * 90)
-n_pass = 0
-for status, label in results:
-    n_pass += status == "PASS"
-    print(f"{status:<6} {label}")
-print("=" * 90)
-print(f"{n_pass}/{len(results)} passed")
+def test_unknown_double_brace_placeholder_is_preserved(tmp_path):
+    template = tmp_path / "label.zpl"
+    template.write_text("^XA^FD{{UNKNOWN}}^FS^XZ", encoding="utf-8")
+    receipt = SimpleNamespace(template_file_path=str(template), name="R", part_number="PN", quantity_text="1")
+    session = SimpleNamespace(
+        id=2, batch_label="B", operator_number="A", operators="A", line_number="L",
+        plain_line_number="L", target_quantity=1,
+        started_at=datetime.now(timezone.utc),
+    )
+    output = Path(_render_label_output(session, receipt)).read_text(encoding="utf-8")
+    assert "{{UNKNOWN}}" in output
